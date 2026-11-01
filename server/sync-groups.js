@@ -111,8 +111,8 @@ export const SYNC_GROUPS = Object.freeze([
     },
     {
         id: 'apiKeys',
-        label: 'API、密钥与代理相关设置',
-        description: 'secrets.json、extension apiKey/apiUrl、Reverse Proxy、proxies 和 selected_proxy（默认关闭）',
+        label: 'API 与密钥相关设置',
+        description: 'secrets.json、extension apiKey/apiUrl（默认关闭，不同步代理设置）',
         datasets: ['secrets.api_keys'],
         special: 'apiKeys',
         state: ['apiKeys'],

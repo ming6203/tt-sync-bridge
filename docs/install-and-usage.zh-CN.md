@@ -318,19 +318,17 @@ tauritavern://tt-sync/pair?v=2&url=...&token=...&exp=...&spki=...
 - 酒馆助手脚本与变量
 - 正则脚本与正则预设
 - 用户设置 power_user
-- API、密钥与代理相关设置
+- API 与密钥相关设置
 
 未勾选的内容不会生成上传计划，也不会下载到本地。
 
-`API、密钥与代理相关设置`默认不勾选。勾选后会同步：
+`API 与密钥相关设置`默认不勾选。勾选后会同步：
 
 - `secrets.json`
 - `extension_settings.apiKey`
 - `extension_settings.apiUrl`
-- `proxies`
-- `selected_proxy`
-- `oai_settings.reverse_proxy`
-- `oai_settings.proxy_password`
+
+代理字段（`proxies`、`selected_proxy`、`reverse_proxy`、`proxy_password`）不会同步，保持本地配置不变。
 
 这些是敏感数据，建议确认自己的使用环境后再启用。
 
@@ -400,7 +398,7 @@ SillyTavern 会在页面加载时把以下内容读入浏览器内存：
 - 全局第三方扩展本体和扩展数据
 - 用户扩展目录及其数据
 - 扩展相关的 `extension_settings` 配置
-- 可选：API、密钥和代理设置（默认关闭）
+- 可选：API 和密钥设置（默认关闭，代理设置不同步）
 
 选择性状态同步：
 

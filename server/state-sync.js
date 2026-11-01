@@ -276,18 +276,6 @@ export function mergeDownloadState(localSettings, remoteSettings, remotePresets,
         merged.extension_settings = mergeExtensionSettings(merged.extension_settings, remoteExtensions, mode, options);
     }
 
-    if (options.apiKeys) {
-        if (Object.hasOwn(remoteSettings ?? {}, 'proxies')) merged.proxies = clone(remoteSettings.proxies);
-        if (Object.hasOwn(remoteSettings ?? {}, 'selected_proxy')) merged.selected_proxy = clone(remoteSettings.selected_proxy);
-        if (isPlainObject(remotePresets?.oai_settings)) {
-            merged.oai_settings ??= {};
-            for (const key of ['reverse_proxy', 'proxy_password']) {
-                if (Object.hasOwn(remotePresets.oai_settings, key)) {
-                    merged.oai_settings[key] = clone(remotePresets.oai_settings[key]);
-                }
-            }
-        }
-    }
 
     if (options.presetState && remotePresets && typeof remotePresets === 'object') {
         for (const key of PRESET_STATE_KEYS) {
@@ -356,18 +344,6 @@ export function mergeUploadState(localSettings, remoteSettings, remotePresets, m
         settings.extension_settings = mergeExtensionSettings(settings.extension_settings, localExtensions, mode, options);
     }
 
-    if (options.apiKeys) {
-        if (Object.hasOwn(localSettings ?? {}, 'proxies')) settings.proxies = clone(localSettings.proxies);
-        if (Object.hasOwn(localSettings ?? {}, 'selected_proxy')) settings.selected_proxy = clone(localSettings.selected_proxy);
-        if (isPlainObject(localSettings?.oai_settings)) {
-            presets.oai_settings ??= {};
-            for (const key of ['reverse_proxy', 'proxy_password']) {
-                if (Object.hasOwn(localSettings.oai_settings, key)) {
-                    presets.oai_settings[key] = clone(localSettings.oai_settings[key]);
-                }
-            }
-        }
-    }
 
     if (options.presetState) {
         for (const key of PRESET_STATE_KEYS) {

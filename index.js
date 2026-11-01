@@ -185,7 +185,7 @@ async function startSync(direction) {
     if (mode === 'mirror') {
         const message = direction === 'upload'
             ? '镜像上传会以 ST 的通用数据集为准，删除 TT-Sync 上通用数据集中 ST 不存在的文件。确定继续？'
-            : '镜像下载会以 TT-Sync 的通用数据集为准，删除 ST 中通用数据集里 TT-Sync 不存在的文件。下载前会自动备份当前 ST 通用数据。确定继续？';
+            : '镜像下载会以 TT-Sync 的通用数据集为准，删除 ST 中通用数据集里 TT-Sync 不存在的文件。确定继续？';
         if (!window.confirm(message)) return;
     }
 

@@ -7,7 +7,6 @@
 - 使用 TT-Sync 设备配对、Ed25519 签名会话和 TLS SPKI 固定
 - 支持增量同步与镜像同步
 - 默认增量模式不会删除目标端多余文件
-- 下载前自动备份当前 ST 数据
 - 只同步约定的通用数据集
 - 选择性同步预设状态、用户设置、persona、正则和 Tavern Helper 全局脚本
 - TT-Sync 私钥仅保存在服务器端，不发送到浏览器
@@ -43,7 +42,7 @@ enableServerPluginsAutoUpdate: false
 
 ### 手动安装
 
-先备份 SillyTavern。假设 SillyTavern 根目录为 `/path/to/SillyTavern`：
+假设 SillyTavern 根目录为 `/path/to/SillyTavern`：
 
 ```bash
 INSTALL_DIR=/path/to/SillyTavern

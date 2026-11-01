@@ -346,19 +346,10 @@ SillyTavern 会在页面加载时把以下内容读入浏览器内存：
 - 扩展源码目录
 - TT 专属的 `_tauritavern/**`
 - agent.* 数据
-- backups 数据集
 
 ---
 
-## 10. 备份和私钥
-
-下载前插件会备份当前 ST 通用数据和 `settings.json`：
-
-```text
-<SillyTavern>/plugins/tt-sync-bridge/data/backups/
-```
-
-默认保留最新 5 份。
+## 10. 私钥
 
 TT-Sync 设备私钥保存在：
 

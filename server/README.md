@@ -33,8 +33,6 @@ There is no version history and no namespace separation.
 - Incremental mode transfers changed/new files and never deletes target-only files.
 - Mirror mode makes the source side authoritative and deletes target-only files
   inside the selected common datasets.
-- Before a download, the plugin backs up the current ST common data to
-  `plugins/tt-sync-bridge/data/backups/` and keeps the latest 5 copies.
 
 Only this conservative dataset intersection is used:
 
@@ -65,7 +63,6 @@ Excluded on purpose:
 
 - `secrets.json`
 - extensions.*
-- backups
 - all `_tauritavern/**` datasets
 - agent.* datasets
 

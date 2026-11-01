@@ -26,6 +26,5 @@
 
 - `secrets.json`
 - 扩展源码目录
-- `backups` 数据集
 - `_tauritavern/**`
 - `agent.*`

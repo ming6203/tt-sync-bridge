@@ -34,12 +34,9 @@ import {
 const PLUGIN_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PLUGIN_DATA_DIR = path.join(PLUGIN_DIR, 'data');
 const CONFIG_PATH = path.join(PLUGIN_DATA_DIR, 'config.json');
-const BACKUP_DIR = path.join(PLUGIN_DATA_DIR, 'backups');
 const TEMP_DIR = path.join(PLUGIN_DATA_DIR, 'tmp');
 const DATA_ROOT = path.resolve(serverDirectory, String(getConfigValue('dataRoot', './data')));
 const LOCAL_SETTINGS_PATH = path.join(DATA_ROOT, 'default-user', 'settings.json');
-const LOCAL_USER_AVATARS_ROOT = path.join(DATA_ROOT, 'default-user', 'User Avatars');
-const MAX_BACKUPS = 5;
 const TRANSFER_CONCURRENCY = 4;
 
 let currentJob = null;
@@ -74,7 +71,6 @@ function createJob(direction, mode) {
         finishedAt: null,
         error: null,
         summary: null,
-        backupPath: null,
         logs: [],
     };
 }
@@ -120,85 +116,6 @@ async function mapLimit(items, limit, mapper) {
         }
     });
     await Promise.all(workers);
-}
-
-async function pruneBackups() {
-    let dirs;
-    try {
-        dirs = (await fs.readdir(BACKUP_DIR, { withFileTypes: true }))
-            .filter(entry => entry.isDirectory())
-            .map(entry => entry.name)
-            .sort()
-            .reverse();
-    } catch (error) {
-        if (error?.code === 'ENOENT') return;
-        throw error;
-    }
-
-    for (const dir of dirs.slice(MAX_BACKUPS)) {
-        await fs.rm(path.join(BACKUP_DIR, dir), { recursive: true, force: true });
-    }
-}
-
-async function snapshotLocalCommonData(job, label) {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const destination = path.join(BACKUP_DIR, `${timestamp}-${label}`);
-    let copied = 0;
-
-    for (const wireRoot of [...new Set(COMMON_DATASETS.flatMap(dataset => dataset.roots))]) {
-        const source = wireToLocal(DATA_ROOT, wireRoot);
-        const target = path.join(destination, 'data', ...wireRoot.split('/'));
-        try {
-            await fs.access(source);
-        } catch (error) {
-            if (error?.code === 'ENOENT') continue;
-            throw error;
-        }
-        await fs.mkdir(path.dirname(target), { recursive: true });
-        await fs.cp(source, target, {
-            recursive: true,
-            force: true,
-            preserveTimestamps: true,
-            errorOnExist: false,
-        });
-        copied++;
-    }
-
-    try {
-        await fs.access(LOCAL_SETTINGS_PATH);
-        const settingsTarget = path.join(destination, 'data', 'default-user', 'settings.json');
-        await fs.mkdir(path.dirname(settingsTarget), { recursive: true });
-        await fs.copyFile(LOCAL_SETTINGS_PATH, settingsTarget);
-        copied++;
-    } catch (error) {
-        if (error?.code !== 'ENOENT') throw error;
-    }
-
-    try {
-        await fs.access(LOCAL_USER_AVATARS_ROOT);
-        const avatarTarget = path.join(destination, 'data', 'default-user', 'User Avatars');
-        await fs.mkdir(path.dirname(avatarTarget), { recursive: true });
-        await fs.cp(LOCAL_USER_AVATARS_ROOT, avatarTarget, {
-            recursive: true,
-            force: true,
-            preserveTimestamps: true,
-            errorOnExist: false,
-        });
-        copied++;
-    } catch (error) {
-        if (error?.code !== 'ENOENT') throw error;
-    }
-
-    if (copied === 0) return null;
-    await fs.writeFile(path.join(destination, 'backup.json'), JSON.stringify({
-        createdAt: new Date().toISOString(),
-        dataRoot: DATA_ROOT,
-        datasets: COMMON_DATASETS.map(dataset => dataset.id),
-    }, null, 2));
-    await pruneBackups();
-    job.backupPath = destination;
-    logJob(job, `已备份当前 ST 通用数据到 ${destination}`);
-    return destination;
 }
 
 function mapLocalPath(wirePath) {
@@ -503,9 +420,6 @@ async function runDownload(job, config, mode) {
         logJob(job, `已连接 TT-Sync：${status.device_name || 'unknown'}，准备下载`);
         await client.ensureSession();
 
-        job.phase = 'backup';
-        await snapshotLocalCommonData(job, `before-${mode}-download`);
-
         job.phase = 'scanning';
         const targetManifest = await scanCommonManifest(DATA_ROOT);
         logJob(job, `ST 通用数据扫描完成：${targetManifest.entries.length} 个文件`);
@@ -545,7 +459,6 @@ async function runDownload(job, config, mode) {
             filesTransferred: transfer.length,
             bytesTransferred: job.bytesDone,
             filesDeleted: job.filesDeleted,
-            backupPath: job.backupPath,
             stateUpdated: stateResult.stateUpdated,
             personaFilesTransferred: stateResult.persona?.transferred ?? 0,
             personaFilesDeleted: stateResult.persona?.deleted ?? 0,

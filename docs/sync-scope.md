@@ -1,0 +1,31 @@
+# 同步范围
+
+## 文件数据集
+
+- chats / group chats / groups
+- character cards
+- world info
+- OpenAI / NovelAI / TextGen / Kobold presets
+- instruct / context / sysprompt / reasoning
+- quick replies
+- themes / moving UI
+- backgrounds / assets / thumbnails
+- user images / files / workflows
+- vectors
+- user avatars
+
+## 选择性状态桥接
+
+- 当前预设选择和预设参数
+- `power_user` 用户设置
+- 用户名、用户头像、persona 描述和 Persona Management 数据
+- Tavern Helper / JS-Slash-Runner 全局脚本与全局变量
+- 全局正则、正则预设和正则允许列表
+
+不主动同步：
+
+- `secrets.json`
+- 扩展源码目录
+- `backups` 数据集
+- `_tauritavern/**`
+- `agent.*`

@@ -1,0 +1,89 @@
+.tt-sync-bridge-settings .tt-sync-status-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.tt-sync-bridge-settings .tt-sync-status {
+    color: var(--SmartThemeQuoteColor);
+}
+
+.tt-sync-bridge-settings .tt-sync-status.is-ok {
+    color: #61c66b;
+}
+
+.tt-sync-bridge-settings .tt-sync-status.is-error {
+    color: #e06c75;
+}
+
+.tt-sync-bridge-settings .tt-sync-server-info {
+    font-size: 0.9em;
+    opacity: 0.8;
+    margin-bottom: 8px;
+    word-break: break-all;
+}
+
+.tt-sync-bridge-settings .tt-sync-label {
+    display: block;
+    margin: 8px 0 4px;
+    font-weight: 600;
+}
+
+.tt-sync-bridge-settings .tt-sync-pair-input {
+    width: 100%;
+    min-height: 70px;
+    resize: vertical;
+    font-family: monospace;
+    font-size: 0.9em;
+}
+
+.tt-sync-bridge-settings .tt-sync-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.tt-sync-bridge-settings .tt-sync-actions .menu_button {
+    flex: 0 0 auto;
+    width: max-content;
+    min-width: max-content;
+    max-width: 100%;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.tt-sync-bridge-settings .tt-sync-divider {
+    border-top: 1px solid var(--SmartThemeBorderColor);
+    margin: 12px 0;
+}
+
+.tt-sync-bridge-settings .tt-sync-help {
+    margin-top: 4px;
+    font-size: 0.9em;
+    opacity: 0.8;
+}
+
+.tt-sync-bridge-settings .tt-sync-progress-wrap {
+    margin-top: 10px;
+}
+
+.tt-sync-bridge-settings #tt_sync_progress {
+    width: 100%;
+    height: 10px;
+}
+
+.tt-sync-bridge-settings .tt-sync-log {
+    max-height: 180px;
+    overflow: auto;
+    margin-top: 8px;
+    padding: 6px;
+    font-size: 0.82em;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.15);
+}

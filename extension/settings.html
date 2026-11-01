@@ -1,0 +1,48 @@
+<div class="tt-sync-bridge-settings">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>TT-Sync 中转同步</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content">
+            <div class="tt-sync-status-row">
+                <span class="tt-sync-label">状态：</span>
+                <span id="tt_sync_connection_status" class="tt-sync-status">未连接</span>
+            </div>
+            <div id="tt_sync_server_info" class="tt-sync-server-info"></div>
+
+            <label class="tt-sync-label" for="tt_sync_pair_uri">TT-Sync 配置链接</label>
+            <textarea id="tt_sync_pair_uri" class="text_pole tt-sync-pair-input" rows="3"
+                placeholder="tauritavern://tt-sync/pair?v=2&url=...&token=...&exp=...&spki=..."></textarea>
+            <div class="tt-sync-help">配对链接由 TT-Sync 管理员生成，例如：<code>tt-sync pair open --rw --mirror</code>。</div>
+            <div class="tt-sync-actions">
+                <button id="tt_sync_pair_btn" class="menu_button">保存并连接</button>
+                <button id="tt_sync_disconnect_btn" class="menu_button">清除本地配对</button>
+            </div>
+
+            <div class="tt-sync-divider"></div>
+
+            <label class="tt-sync-label" for="tt_sync_mode">同步模式</label>
+            <select id="tt_sync_mode" class="text_pole">
+                <option value="incremental" selected>增量模式（推荐）</option>
+                <option value="mirror">镜像模式（源端为准，会删除多余文件）</option>
+            </select>
+            <div id="tt_sync_mode_help" class="tt-sync-help">
+                增量模式：对比文件，同步新增或变化的文件，不删除目标端多余文件。
+            </div>
+
+            <div class="tt-sync-actions">
+                <button id="tt_sync_upload_btn" class="menu_button">上传 ST → TT-Sync</button>
+                <button id="tt_sync_download_btn" class="menu_button">下载 TT-Sync → ST</button>
+            </div>
+            <div class="tt-sync-help">下载同步完成后需要刷新页面，角色卡、正则、用户设定、脚本和预设才会重新加载生效。</div>
+
+            <div class="tt-sync-progress-wrap">
+                <progress id="tt_sync_progress" value="0" max="1"></progress>
+                <div id="tt_sync_progress_text" class="tt-sync-help">空闲</div>
+            </div>
+
+            <pre id="tt_sync_log" class="tt-sync-log"></pre>
+        </div>
+    </div>
+</div>

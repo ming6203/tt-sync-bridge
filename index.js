@@ -3,6 +3,7 @@ import { getRequestHeaders } from '../../../../script.js';
 
 const API_BASE = '/api/plugins/tt-sync-bridge';
 const SYNC_GROUPS_STORAGE_KEY = 'tt_sync_bridge_selected_groups_v1';
+const SYNC_MODE_STORAGE_KEY = 'tt_sync_bridge_sync_mode_v1';
 let pollTimer = null;
 let busy = false;
 let syncGroups = [];
@@ -178,6 +179,17 @@ function selectScopeGroups(ids) {
     const known = new Set(syncGroups.map(group => group.id));
     selectedGroups = new Set(ids.filter(id => known.has(id)));
     renderScopeList();
+}
+
+function loadStoredSyncMode() {
+    const value = localStorage.getItem(SYNC_MODE_STORAGE_KEY);
+    return ['incremental', 'mirror'].includes(value) ? value : 'incremental';
+}
+
+function saveSyncMode(value) {
+    if (['incremental', 'mirror'].includes(value)) {
+        localStorage.setItem(SYNC_MODE_STORAGE_KEY, value);
+    }
 }
 
 function renderModeHelp() {
@@ -358,7 +370,11 @@ export async function init() {
     });
     elements.uploadButton.addEventListener('click', () => startSync('upload'));
     elements.downloadButton.addEventListener('click', () => startSync('download'));
-    elements.mode.addEventListener('change', renderModeHelp);
+    elements.mode.value = loadStoredSyncMode();
+    elements.mode.addEventListener('change', () => {
+        saveSyncMode(elements.mode.value);
+        renderModeHelp();
+    });
     renderModeHelp();
     await refreshStatus();
 

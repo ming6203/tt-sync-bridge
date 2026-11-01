@@ -14,9 +14,11 @@
 
 ## 目录结构
 
+仓库根目录本身就是 SillyTavern UI 扩展，包含 `manifest.json`、`index.js`、`settings.html` 和 `style.css`。
+
 ```text
+.            SillyTavern UI extension (default branch)
 server/      SillyTavern server plugin
-extension/   SillyTavern UI extension
 docs/        pairing / scope / security docs
 ```
 
@@ -26,8 +28,10 @@ docs/        pairing / scope / security docs
 
 ```bash
 INSTALL_DIR=/path/to/SillyTavern
+mkdir -p "$INSTALL_DIR/public/scripts/extensions/third-party/tt-sync-bridge"
+cp manifest.json index.js settings.html style.css \
+  "$INSTALL_DIR/public/scripts/extensions/third-party/tt-sync-bridge/"
 cp -R server "$INSTALL_DIR/plugins/tt-sync-bridge"
-cp -R extension "$INSTALL_DIR/public/scripts/extensions/third-party/tt-sync-bridge"
 chown -R "$(stat -c '%U:%G' "$INSTALL_DIR")" \
   "$INSTALL_DIR/plugins/tt-sync-bridge" \
   "$INSTALL_DIR/public/scripts/extensions/third-party/tt-sync-bridge"
@@ -42,12 +46,14 @@ enableServerPluginsAutoUpdate: false
 
 然后重启 SillyTavern。
 
-前端扩展也可以从本仓库的 `extension` 分支安装：
+前端扩展可以直接从默认分支安装：
 
 ```text
 https://github.com/ming6203/tt-sync-bridge
-Branch: extension
+Branch: main（或留空使用默认分支）
 ```
+
+旧的 `extension` 分支仍然保留用于兼容，但不再需要。
 
 ## 配对
 

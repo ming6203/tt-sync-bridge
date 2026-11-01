@@ -14,13 +14,17 @@ if [ ! -f "$ST_DIR/package.json" ] || [ ! -d "$ST_DIR/public/scripts/extensions"
   exit 1
 fi
 
+EXT_DIR="$ST_DIR/public/scripts/extensions/third-party/tt-sync-bridge"
+PLUGIN_DIR="$ST_DIR/plugins/tt-sync-bridge"
+
 echo "Installing server plugin..."
-rm -rf "$ST_DIR/plugins/tt-sync-bridge"
-cp -R "$SCRIPT_DIR/server" "$ST_DIR/plugins/tt-sync-bridge"
+rm -rf "$PLUGIN_DIR"
+cp -R "$SCRIPT_DIR/server" "$PLUGIN_DIR"
 
 echo "Installing UI extension..."
-rm -rf "$ST_DIR/public/scripts/extensions/third-party/tt-sync-bridge"
-cp -R "$SCRIPT_DIR/extension" "$ST_DIR/public/scripts/extensions/third-party/tt-sync-bridge"
+rm -rf "$EXT_DIR"
+mkdir -p "$EXT_DIR"
+cp "$SCRIPT_DIR/manifest.json" "$SCRIPT_DIR/index.js" "$SCRIPT_DIR/settings.html" "$SCRIPT_DIR/style.css" "$EXT_DIR/"
 
 echo
 echo "Installation complete."

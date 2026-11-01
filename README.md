@@ -141,6 +141,9 @@ tt-sync --state-dir <state-dir> --config-file <config.toml> \
 
 SillyTavern 的角色卡、正则、脚本和预设会在页面加载时进入浏览器内存。下载同步完成后必须刷新页面才能生效。插件会在下载发生变化后弹出刷新提示。
 
+> 更完整的安装、路径说明、配对、使用和故障排查见
+> [`docs/install-and-usage.zh-CN.md`](docs/install-and-usage.zh-CN.md)。
+
 ## 许可证
 
 AGPL-3.0

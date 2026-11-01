@@ -24,6 +24,25 @@ docs/        pairing / scope / security docs
 
 ## 安装
 
+> SillyTavern 的“安装扩展”只能安装前端扩展，不能安装服务器插件。服务端插件需要一次性在运行 SillyTavern 的服务器上安装。安装完成后，所有访问这台 SillyTavern 的浏览器设备都能使用。
+
+### 一条命令安装（服务器 SSH）
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ming6203/tt-sync-bridge/main/bootstrap.sh | bash -s -- /path/to/SillyTavern
+```
+
+然后确认 `config.yaml`：
+
+```yaml
+enableServerPlugins: true
+enableServerPluginsAutoUpdate: false
+```
+
+重启 SillyTavern。
+
+### 手动安装
+
 先备份 SillyTavern。假设 SillyTavern 根目录为 `/path/to/SillyTavern`：
 
 ```bash

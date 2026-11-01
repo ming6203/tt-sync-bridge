@@ -46,14 +46,9 @@ export const PERSONA_POWER_KEYS = Object.freeze([
     'persona_descriptions',
 ]);
 
-const EXTENSION_STATE_KEYS = Object.freeze([
-    'tavern_helper',
-    'variables',
-    'regex',
-    'regex_presets',
-    'character_allowed_regex',
-    'preset_allowed_regex',
-    'regexBinding_scriptId',
+const EXTENSION_SETTING_EXCLUSIONS = new Set([
+    'apiKey',
+    'apiUrl',
 ]);
 
 function clone(value) {
@@ -208,8 +203,20 @@ function mergeExtensionValue(key, target, source, mode) {
             return clone(source);
         case 'variables':
         default:
-            return deepMergeObject(target, source);
+            if (isPlainObject(target) && isPlainObject(source)) {
+                return deepMergeObject(target, source);
+            }
+            return clone(source);
     }
+}
+
+function mergeExtensionSettings(target, source, mode) {
+    const result = isPlainObject(target) ? clone(target) : {};
+    for (const [key, value] of Object.entries(source ?? {})) {
+        if (EXTENSION_SETTING_EXCLUSIONS.has(key)) continue;
+        result[key] = mergeExtensionValue(key, result[key], value, mode);
+    }
+    return result;
 }
 
 /**
@@ -230,17 +237,7 @@ export function mergeDownloadState(localSettings, remoteSettings, remotePresets,
 
     const remoteExtensions = remoteSettings?.extension_settings;
     if (remoteExtensions && typeof remoteExtensions === 'object') {
-        merged.extension_settings ??= {};
-        for (const key of EXTENSION_STATE_KEYS) {
-            if (Object.hasOwn(remoteExtensions, key)) {
-                merged.extension_settings[key] = mergeExtensionValue(
-                    key,
-                    merged.extension_settings[key],
-                    remoteExtensions[key],
-                    mode,
-                );
-            }
-        }
+        merged.extension_settings = mergeExtensionSettings(merged.extension_settings, remoteExtensions, mode);
     }
 
     if (remotePresets && typeof remotePresets === 'object') {
@@ -291,17 +288,7 @@ export function mergeUploadState(localSettings, remoteSettings, remotePresets, m
     }
 
     if (localExtensions && typeof localExtensions === 'object') {
-        settings.extension_settings ??= {};
-        for (const key of EXTENSION_STATE_KEYS) {
-            if (Object.hasOwn(localExtensions, key)) {
-                settings.extension_settings[key] = mergeExtensionValue(
-                    key,
-                    settings.extension_settings[key],
-                    localExtensions[key],
-                    mode,
-                );
-            }
-        }
+        settings.extension_settings = mergeExtensionSettings(settings.extension_settings, localExtensions, mode);
     }
 
     for (const key of PRESET_STATE_KEYS) {

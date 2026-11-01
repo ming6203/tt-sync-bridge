@@ -4,9 +4,10 @@ import path from 'node:path';
 export const DATASET_POLICY_VERSION = 1;
 
 /**
- * The deliberately conservative intersection used by this bridge.
- * TT-only datasets, settings, secrets, extensions and backup archives are
- * intentionally excluded so that mirror mode cannot touch them.
+ * Common datasets synchronized by this bridge.
+ * TT-only datasets, settings, secrets and TauriTavern-specific data remain
+ * excluded. Extension code/data are included, but the bridge itself and
+ * platform-specific VCS/dependency directories are filtered out.
  */
 export const COMMON_DATASETS = Object.freeze([
     { id: 'chat.character.history', roots: ['default-user/chats'] },
@@ -34,7 +35,18 @@ export const COMMON_DATASETS = Object.freeze([
     { id: 'vectors', roots: ['default-user/vectors'] },
 ]);
 
+export const EXTENSION_DATASETS = Object.freeze([
+    { id: 'extensions.local', roots: ['default-user/extensions'] },
+    { id: 'extensions.third_party', roots: ['extensions/third-party'] },
+]);
+
 const COMMON_ROOTS = [...new Set(COMMON_DATASETS.flatMap(dataset => dataset.roots))];
+const EXTENSION_ROOTS = [...new Set(EXTENSION_DATASETS.flatMap(dataset => dataset.roots))];
+const SYNC_ROOTS = [...new Set([...COMMON_ROOTS, ...EXTENSION_ROOTS])];
+export const EXTENSION_DATASET_IDS = EXTENSION_DATASETS.map(dataset => dataset.id);
+export const GLOBAL_EXTENSIONS_WIRE_ROOT = 'extensions/third-party';
+export const EXTENSIONS_LOCAL_WIRE_ROOT = 'default-user/extensions';
+export const BRIDGE_EXTENSION_WIRE_PATH = 'extensions/third-party/tt-sync-bridge';
 
 export function buildSelection(status, datasetIds = COMMON_DATASETS.map(dataset => dataset.id)) {
     const policyVersion = Number(status?.dataset_policy_version ?? DATASET_POLICY_VERSION);
@@ -55,9 +67,19 @@ export function buildSelection(status, datasetIds = COMMON_DATASETS.map(dataset 
 }
 
 export function isExcludedWirePath(wirePath) {
-    return String(wirePath)
+    const value = String(wirePath);
+    if (value === BRIDGE_EXTENSION_WIRE_PATH || value.startsWith(`${BRIDGE_EXTENSION_WIRE_PATH}/`)) {
+        return true;
+    }
+    return value
         .split('/')
-        .some(part => part === '.staging' || part.startsWith('.tmp-') || part.endsWith('.ttsync.tmp'));
+        .some(part => part === '.staging'
+            || part === '.git'
+            || part === 'node_modules'
+            || part === '__pycache__'
+            || part === '.DS_Store'
+            || part.startsWith('.tmp-')
+            || part.endsWith('.ttsync.tmp'));
 }
 
 function assertSafeWirePath(wirePath) {
@@ -73,13 +95,24 @@ function assertSafeWirePath(wirePath) {
 
 export function isCommonWirePath(wirePath) {
     assertSafeWirePath(wirePath);
-    return COMMON_ROOTS.some(root => wirePath === root || wirePath.startsWith(`${root}/`));
+    return SYNC_ROOTS.some(root => wirePath === root || wirePath.startsWith(`${root}/`));
 }
 
-export function wireToLocal(dataRoot, wirePath) {
+export function wireToLocal(dataRoot, wirePath, appRoot = null) {
     assertSafeWirePath(wirePath);
     if (!isCommonWirePath(wirePath)) {
         throw new Error(`路径不在通用数据集范围内：${wirePath}`);
+    }
+
+    if (wirePath === GLOBAL_EXTENSIONS_WIRE_ROOT || wirePath.startsWith(`${GLOBAL_EXTENSIONS_WIRE_ROOT}/`)) {
+        if (!appRoot) throw new Error('缺少 SillyTavern 程序目录，无法映射全局扩展路径');
+        const suffix = wirePath.slice(GLOBAL_EXTENSIONS_WIRE_ROOT.length).replace(/^\//, '');
+        const root = path.resolve(appRoot, 'public', 'scripts', 'extensions', 'third-party');
+        const full = suffix ? path.resolve(root, ...suffix.split('/')) : root;
+        if (full !== root && !full.startsWith(root + path.sep)) {
+            throw new Error(`同步路径越界：${wirePath}`);
+        }
+        return full;
     }
 
     const root = path.resolve(dataRoot);
@@ -166,11 +199,11 @@ export async function scanWireSubtree(dataRoot, wireRoot) {
     return { entries };
 }
 
-export async function scanCommonManifest(dataRoot) {
+async function scanRoots(dataRoot, appRoot, roots) {
     const entries = [];
 
-    for (const wireRoot of COMMON_ROOTS) {
-        const localRoot = wireToLocal(dataRoot, wireRoot);
+    for (const wireRoot of roots) {
+        const localRoot = wireToLocal(dataRoot, wireRoot, appRoot);
         let stat;
         try {
             stat = await fs.stat(localRoot);
@@ -184,6 +217,14 @@ export async function scanCommonManifest(dataRoot) {
 
     entries.sort((a, b) => a.path.localeCompare(b.path));
     return { entries };
+}
+
+export async function scanCommonManifest(dataRoot, appRoot) {
+    return await scanRoots(dataRoot, appRoot, COMMON_ROOTS);
+}
+
+export async function scanExtensionManifest(dataRoot, appRoot) {
+    return await scanRoots(dataRoot, appRoot, EXTENSION_ROOTS);
 }
 
 export function planEntriesInScope(entries) {

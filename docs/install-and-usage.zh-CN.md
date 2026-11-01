@@ -299,6 +299,10 @@ tauritavern://tt-sync/pair?v=2&url=...&token=...&exp=...&spki=...
 
 共享同一个 TT-Sync 工作区时，请谨慎使用镜像上传。
 
+扩展目录使用独立增量同步：会新增和更新扩展文件，但镜像模式不会删除目标端的扩展目录。TT-Sync Bridge 自身不会被同步。
+
+扩展相关的 `extension_settings` 也会同步，但 `apiKey` 和 `apiUrl` 不参与同步。
+
 ---
 
 ## 8. 下载后必须刷新页面
@@ -331,6 +335,9 @@ SillyTavern 会在页面加载时把以下内容读入浏览器内存：
 - 用户图片、文件、工作流
 - vectors
 - 用户头像
+- 全局第三方扩展本体和扩展数据
+- 用户扩展目录及其数据
+- 扩展相关的 `extension_settings` 配置（不包含 extras 的 `apiKey` / `apiUrl`）
 
 选择性状态同步：
 
@@ -343,7 +350,6 @@ SillyTavern 会在页面加载时把以下内容读入浏览器内存：
 默认不处理：
 
 - `secrets.json`
-- 扩展源码目录
 - TT 专属的 `_tauritavern/**`
 - agent.* 数据
 

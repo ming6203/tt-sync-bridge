@@ -7,11 +7,13 @@ import { getConfigValue } from '../../src/util.js';
 import { serverDirectory } from '../../src/server-directory.js';
 import {
     COMMON_DATASETS,
+    EXTENSION_DATASET_IDS,
     buildSelection,
     defaultUserWireToLocal,
     isCommonWirePath,
     planEntriesInScope,
     scanCommonManifest,
+    scanExtensionManifest,
     scanWireSubtree,
     wireToLocal,
 } from './manifest.js';
@@ -119,7 +121,7 @@ async function mapLimit(items, limit, mapper) {
 }
 
 function mapLocalPath(wirePath) {
-    return wireToLocal(DATA_ROOT, wirePath);
+    return wireToLocal(DATA_ROOT, wirePath, serverDirectory);
 }
 
 async function readJson(filePath) {
@@ -219,6 +221,48 @@ async function pushRemoteState(client, status, settings, presets) {
     } finally {
         if (plan?.plan_id) await client.abortPlan(plan.plan_id).catch(() => {});
         await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    }
+}
+
+async function syncExtensionsUpload(job, client, status) {
+    const selection = buildSelection(status, EXTENSION_DATASET_IDS);
+    let plan = null;
+    try {
+        const manifest = await scanExtensionManifest(DATA_ROOT, serverDirectory);
+        plan = await client.pushPlan('incremental', selection, manifest);
+        const transfer = planEntriesInScope(plan.transfer);
+        let transferred = 0;
+        await mapLimit(transfer, TRANSFER_CONCURRENCY, async entry => {
+            await client.uploadFile(plan.plan_id, entry, mapLocalPath(entry.path));
+            transferred++;
+        });
+        await client.commitPush(plan.plan_id);
+        plan = null;
+        logJob(job, `扩展本体和扩展数据已增量上传：${transferred} 个文件（不删除目标端扩展目录）`);
+        return transferred;
+    } finally {
+        if (plan?.plan_id) await client.abortPlan(plan.plan_id).catch(() => {});
+    }
+}
+
+async function syncExtensionsDownload(job, client, status) {
+    const selection = buildSelection(status, EXTENSION_DATASET_IDS);
+    let plan = null;
+    try {
+        const manifest = await scanExtensionManifest(DATA_ROOT, serverDirectory);
+        plan = await client.pullPlan('incremental', selection, manifest);
+        const transfer = planEntriesInScope(plan.transfer);
+        let transferred = 0;
+        await mapLimit(transfer, TRANSFER_CONCURRENCY, async entry => {
+            await client.downloadFile(plan.plan_id, entry, mapLocalPath(entry.path));
+            transferred++;
+        });
+        await client.abortPlan(plan.plan_id);
+        plan = null;
+        logJob(job, `扩展本体和扩展数据已增量下载：${transferred} 个文件（不删除本地扩展目录）`);
+        return transferred;
+    } finally {
+        if (plan?.plan_id) await client.abortPlan(plan.plan_id).catch(() => {});
     }
 }
 
@@ -368,7 +412,7 @@ async function runUpload(job, config, mode) {
         await client.ensureSession();
 
         job.phase = 'scanning';
-        const sourceManifest = await scanCommonManifest(DATA_ROOT);
+        const sourceManifest = await scanCommonManifest(DATA_ROOT, serverDirectory);
         job.filesTotal = sourceManifest.entries.length;
         logJob(job, `ST 通用数据扫描完成：${sourceManifest.entries.length} 个文件`);
 
@@ -376,6 +420,13 @@ async function runUpload(job, config, mode) {
         plan = await client.pushPlan(mode, selection, sourceManifest);
         const transfer = planEntriesInScope(plan.transfer);
         const deletes = planEntriesInScope((plan.delete || []).map(item => ({ path: item })));
+        const bridgeDelete = deletes.some(entry => entry.path === 'extensions/third-party/tt-sync-bridge'
+            || entry.path.startsWith('extensions/third-party/tt-sync-bridge/'));
+        if (bridgeDelete) {
+            await client.abortPlan(plan.plan_id).catch(() => {});
+            plan = null;
+            throw new Error('镜像上传会删除 TT-Sync Bridge 自身，已阻止执行');
+        }
         job.filesTotal = transfer.length;
         job.bytesTotal = transfer.reduce((sum, entry) => sum + Number(entry.size_bytes), 0);
         logJob(job, `上传计划：传输 ${transfer.length} 个文件，${job.bytesTotal} 字节；镜像删除 ${deletes.length} 个文件`);
@@ -395,12 +446,14 @@ async function runUpload(job, config, mode) {
         job.filesDeleted = deletes.length;
         logJob(job, 'TT-Sync 已提交上传计划');
         await syncStateUpload(job, client, status);
+        const extensionFilesTransferred = await syncExtensionsUpload(job, client, status);
         job.summary = {
             direction: 'upload',
             mode,
             filesTransferred: transfer.length,
             bytesTransferred: job.bytesDone,
             filesDeleted: deletes.length,
+            extensionFilesTransferred,
         };
         plan = null;
     } finally {
@@ -421,7 +474,7 @@ async function runDownload(job, config, mode) {
         await client.ensureSession();
 
         job.phase = 'scanning';
-        const targetManifest = await scanCommonManifest(DATA_ROOT);
+        const targetManifest = await scanCommonManifest(DATA_ROOT, serverDirectory);
         logJob(job, `ST 通用数据扫描完成：${targetManifest.entries.length} 个文件`);
 
         job.phase = 'comparing';
@@ -453,6 +506,7 @@ async function runDownload(job, config, mode) {
         await client.abortPlan(plan.plan_id).catch(() => {});
         plan = null;
         const stateResult = await syncStateDownload(job, client, status);
+        const extensionFilesTransferred = await syncExtensionsDownload(job, client, status);
         job.summary = {
             direction: 'download',
             mode,
@@ -462,6 +516,7 @@ async function runDownload(job, config, mode) {
             stateUpdated: stateResult.stateUpdated,
             personaFilesTransferred: stateResult.persona?.transferred ?? 0,
             personaFilesDeleted: stateResult.persona?.deleted ?? 0,
+            extensionFilesTransferred,
         };
         logJob(job, '下载/恢复完成');
     } finally {
@@ -498,7 +553,7 @@ async function init(router) {
         const payload = {
             ok: true,
             dataRoot: DATA_ROOT,
-            datasets: COMMON_DATASETS.map(dataset => dataset.id),
+            datasets: [...COMMON_DATASETS.map(dataset => dataset.id), ...EXTENSION_DATASET_IDS],
             config: publicConfig(config),
             connected: false,
             server: null,

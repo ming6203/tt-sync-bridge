@@ -15,6 +15,7 @@
             <textarea id="tt_sync_pair_uri" class="text_pole tt-sync-pair-input" rows="3"
                 placeholder="tauritavern://tt-sync/pair?v=2&url=...&token=...&exp=...&spki=..."></textarea>
             <div class="tt-sync-help">配对链接由 TT-Sync 管理员生成，例如：<code>tt-sync pair open --rw --mirror</code>。</div>
+            <div class="tt-sync-help">同步范围包含扩展本体、扩展数据和扩展配置；扩展目录使用增量同步，TT-Sync Bridge 自身不会被同步或删除。</div>
             <div class="tt-sync-actions">
                 <button id="tt_sync_pair_btn" class="menu_button">保存并连接</button>
                 <button id="tt_sync_disconnect_btn" class="menu_button">清除本地配对</button>

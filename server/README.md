@@ -46,6 +46,7 @@ Only this conservative dataset intersection is used:
 - backgrounds/assets/thumbnails
 - user images/files/workflows
 - vectors
+- extension code and data (`extensions.local`, `extensions.third_party`)
 
 A selective state bridge also syncs:
 
@@ -57,12 +58,13 @@ A selective state bridge also syncs:
 
 The state bridge never replaces the whole `settings.json`. Incremental mode
 merges scripts/regex by id and preserves target-only entries. Mirror mode makes
-the source side authoritative for the selected state.
+the source side authoritative for the selected state. Extension settings are
+merged, but `apiKey` and `apiUrl` are intentionally excluded. The bridge extension
+itself is excluded from extension-directory sync and mirror deletion.
 
 Excluded on purpose:
 
 - `secrets.json`
-- extensions.*
 - all `_tauritavern/**` datasets
 - agent.* datasets
 

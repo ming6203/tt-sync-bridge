@@ -13,6 +13,9 @@
 - user images / files / workflows
 - vectors
 - user avatars
+- third-party extension code and data
+- user-scoped extensions and data
+- extension settings (`extension_settings`, excluding `apiKey` / `apiUrl`)
 
 ## 选择性状态桥接
 
@@ -25,6 +28,5 @@
 不主动同步：
 
 - `secrets.json`
-- 扩展源码目录
 - `_tauritavern/**`
 - `agent.*`

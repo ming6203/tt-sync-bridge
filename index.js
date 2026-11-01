@@ -162,6 +162,7 @@ async function pollJob() {
                     || Number(summary.filesDeleted) > 0
                     || Number(summary.personaFilesTransferred) > 0
                     || Number(summary.personaFilesDeleted) > 0
+                    || Number(summary.extensionFilesTransferred) > 0
                     || summary.stateUpdated === true
                 );
                 if (downloadChanged) {
@@ -184,8 +185,8 @@ async function startSync(direction) {
 
     if (mode === 'mirror') {
         const message = direction === 'upload'
-            ? '镜像上传会以 ST 的通用数据集为准，删除 TT-Sync 上通用数据集中 ST 不存在的文件。确定继续？'
-            : '镜像下载会以 TT-Sync 的通用数据集为准，删除 ST 中通用数据集里 TT-Sync 不存在的文件。确定继续？';
+            ? '镜像上传会以 ST 的通用数据集为准，删除 TT-Sync 上通用数据集中 ST 不存在的文件，包括多余的扩展目录（TT-Sync Bridge 自身除外）。确定继续？'
+            : '镜像下载会以 TT-Sync 的通用数据集为准，删除 ST 中通用数据集里 TT-Sync 不存在的文件，包括多余的扩展目录（TT-Sync Bridge 自身除外）。确定继续？';
         if (!window.confirm(message)) return;
     }
 

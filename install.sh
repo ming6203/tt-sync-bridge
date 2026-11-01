@@ -17,9 +17,12 @@ fi
 EXT_DIR="$ST_DIR/public/scripts/extensions/third-party/tt-sync-bridge"
 PLUGIN_DIR="$ST_DIR/plugins/tt-sync-bridge"
 
-echo "Installing server plugin..."
-rm -rf "$PLUGIN_DIR"
-cp -R "$SCRIPT_DIR/server" "$PLUGIN_DIR"
+echo "Installing server plugin (preserving data/)..."
+mkdir -p "$PLUGIN_DIR"
+# Remove old code files, but never remove the plugin data directory.
+# data/config.json contains the TT-Sync device identity and pairing config.
+find "$PLUGIN_DIR" -mindepth 1 -maxdepth 1 ! -name data -exec rm -rf {} +
+cp -R "$SCRIPT_DIR/server/." "$PLUGIN_DIR/"
 
 echo "Installing UI extension..."
 rm -rf "$EXT_DIR"

@@ -76,6 +76,18 @@ Branch: main（或留空使用默认分支）
 
 旧的 `extension` 分支仍然保留用于兼容，但不再需要。
 
+## 更新时保留配对配置
+
+安装和更新脚本会保留：
+
+```text
+<SillyTavern>/plugins/tt-sync-bridge/data/
+```
+
+其中 `data/config.json` 保存 TT-Sync 设备身份和配对信息。正常使用安装脚本更新代码不会丢失已配置的连接。
+
+如果手动删除整个 `plugins/tt-sync-bridge` 目录，则配对信息会丢失，需要重新生成 TT-Sync 配对链接。
+
 ## 配对
 
 在 TT-Sync 服务器生成一次性配对链接：

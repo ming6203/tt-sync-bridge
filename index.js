@@ -22,13 +22,27 @@ function ui() {
     };
 }
 
+function explainApiError(response, data) {
+    if (response.status === 404) {
+        return new Error(
+            '当前 SillyTavern 没有加载 TT-Sync 服务端插件。请将仓库 server/ 目录安装到 '
+            + 'SillyTavern/plugins/tt-sync-bridge/，确认 config.yaml 中 enableServerPlugins: true，'
+            + '然后重启 SillyTavern。',
+        );
+    }
+    if (response.status === 401 || response.status === 403) {
+        return new Error(data.error || 'SillyTavern 登录或权限校验失败，请重新登录后再试');
+    }
+    return new Error(data.error || `HTTP ${response.status}`);
+}
+
 async function apiGet(pathname) {
     const response = await fetch(`${API_BASE}${pathname}`, {
         method: 'GET',
         headers: getRequestHeaders(),
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    if (!response.ok) throw explainApiError(response, data);
     return data;
 }
 
@@ -39,7 +53,7 @@ async function apiPost(pathname, body) {
         body: JSON.stringify(body ?? {}),
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    if (!response.ok) throw explainApiError(response, data);
     return data;
 }
 

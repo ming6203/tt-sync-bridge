@@ -80,6 +80,44 @@ tt-sync --state-dir <TT_SYNC_STATE_DIR> \
 
 镜像模式执行前需要二次确认。共享同一个 TT-Sync 工作区时请谨慎使用。
 
+## 404 / 无法连接排查
+
+前端扩展只是界面，真正连接 TT-Sync 的是 SillyTavern 服务器插件。
+
+每个运行 SillyTavern 的服务器都必须安装服务端插件：
+
+```text
+/path/to/SillyTavern/plugins/tt-sync-bridge/index.js
+/path/to/SillyTavern/plugins/tt-sync-bridge/manifest.js
+/path/to/SillyTavern/plugins/tt-sync-bridge/state-sync.js
+/path/to/SillyTavern/plugins/tt-sync-bridge/ttsync-client.js
+/path/to/SillyTavern/plugins/tt-sync-bridge/package.json
+```
+
+并确认：
+
+```yaml
+enableServerPlugins: true
+enableServerPluginsAutoUpdate: false
+```
+
+修改后必须重启 SillyTavern。然后在浏览器中确认这个接口返回 JSON：
+
+```text
+/api/plugins/tt-sync-bridge/status
+```
+
+如果该接口是 404，说明服务端插件没有加载成功。
+
+TT-Sync 配对链接是一次性的，并且每个 SillyTavern 实例都要单独生成一个：
+
+```bash
+tt-sync --state-dir <state-dir> --config-file <config.toml> \
+  pair open --rw --mirror --expires 10m
+```
+
+不要在多个设备之间复用同一个配对链接。
+
 ## 重要限制
 
 SillyTavern 的角色卡、正则、脚本和预设会在页面加载时进入浏览器内存。下载同步完成后必须刷新页面才能生效。插件会在下载发生变化后弹出刷新提示。

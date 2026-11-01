@@ -2,8 +2,13 @@ import { getContext, renderExtensionTemplateAsync } from '../../../extensions.js
 import { getRequestHeaders } from '../../../../script.js';
 
 const API_BASE = '/api/plugins/tt-sync-bridge';
+const SYNC_GROUPS_STORAGE_KEY = 'tt_sync_bridge_selected_groups_v1';
 let pollTimer = null;
 let busy = false;
+let syncGroups = [];
+let defaultGroups = [];
+let selectedGroups = new Set();
+let groupsInitialized = false;
 
 function ui() {
     return {
@@ -14,6 +19,14 @@ function ui() {
         disconnectButton: document.querySelector('#tt_sync_disconnect_btn'),
         mode: document.querySelector('#tt_sync_mode'),
         modeHelp: document.querySelector('#tt_sync_mode_help'),
+        scopeButton: document.querySelector('#tt_sync_scope_btn'),
+        scopeSummary: document.querySelector('#tt_sync_scope_summary'),
+        scopeModal: document.querySelector('#tt_sync_scope_modal'),
+        scopeList: document.querySelector('#tt_sync_scope_list'),
+        scopeAll: document.querySelector('#tt_sync_scope_all'),
+        scopeDefault: document.querySelector('#tt_sync_scope_default'),
+        scopeCancel: document.querySelector('#tt_sync_scope_cancel'),
+        scopeSave: document.querySelector('#tt_sync_scope_save'),
         uploadButton: document.querySelector('#tt_sync_upload_btn'),
         downloadButton: document.querySelector('#tt_sync_download_btn'),
         progress: document.querySelector('#tt_sync_progress'),
@@ -91,6 +104,96 @@ function renderStatus(data) {
     }
 }
 
+function loadStoredGroups() {
+    try {
+        const value = JSON.parse(localStorage.getItem(SYNC_GROUPS_STORAGE_KEY) || 'null');
+        return Array.isArray(value) ? value.map(String) : null;
+    } catch {
+        return null;
+    }
+}
+
+function initializeGroups(data) {
+    if (!Array.isArray(data?.groups) || data.groups.length === 0) return;
+    syncGroups = data.groups;
+    defaultGroups = Array.isArray(data.defaultGroups) && data.defaultGroups.length > 0
+        ? data.defaultGroups.map(String)
+        : syncGroups.filter(group => group.defaultEnabled).map(group => group.id);
+
+    if (!groupsInitialized) {
+        const known = new Set(syncGroups.map(group => group.id));
+        const stored = loadStoredGroups();
+        const initial = (stored ?? defaultGroups).filter(id => known.has(id));
+        selectedGroups = new Set(initial.length > 0 ? initial : defaultGroups);
+        groupsInitialized = true;
+    }
+}
+
+function renderScopeSummary() {
+    const count = selectedGroups.size;
+    const labels = syncGroups
+        .filter(group => selectedGroups.has(group.id))
+        .map(group => group.label);
+    if (ui().scopeSummary) {
+        ui().scopeSummary.textContent = count > 0
+            ? `已选择 ${count} 项：${labels.join('、')}`
+            : '当前未选择任何同步内容';
+    }
+}
+
+function renderScopeList() {
+    const list = ui().scopeList;
+    if (!list) return;
+    list.replaceChildren();
+    for (const group of syncGroups) {
+        const label = document.createElement('label');
+        label.className = 'tt-sync-scope-item';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.dataset.groupId = group.id;
+        checkbox.checked = selectedGroups.has(group.id);
+
+        const text = document.createElement('span');
+        const title = document.createElement('strong');
+        title.textContent = group.label;
+        const description = document.createElement('small');
+        description.textContent = group.description || '';
+        text.append(title, description);
+
+        label.append(checkbox, text);
+        list.append(label);
+    }
+}
+
+function openScopeModal() {
+    renderScopeList();
+    if (ui().scopeModal) ui().scopeModal.hidden = false;
+}
+
+function closeScopeModal() {
+    if (ui().scopeModal) ui().scopeModal.hidden = true;
+}
+
+function saveScopeSelection() {
+    const checked = [...ui().scopeList.querySelectorAll('input[type="checkbox"]:checked')]
+        .map(input => input.dataset.groupId);
+    if (checked.length === 0) {
+        toastr.warning('至少需要勾选一项同步内容');
+        return;
+    }
+    selectedGroups = new Set(checked);
+    localStorage.setItem(SYNC_GROUPS_STORAGE_KEY, JSON.stringify(checked));
+    renderScopeSummary();
+    closeScopeModal();
+}
+
+function selectScopeGroups(ids) {
+    const known = new Set(syncGroups.map(group => group.id));
+    selectedGroups = new Set(ids.filter(id => known.has(id)));
+    renderScopeList();
+}
+
 function renderModeHelp() {
     const mode = ui().mode?.value || 'incremental';
     ui().modeHelp.textContent = mode === 'mirror'
@@ -124,6 +227,8 @@ function renderJob(job) {
 async function refreshStatus() {
     try {
         const data = await apiGet('/status');
+        initializeGroups(data);
+        renderScopeSummary();
         renderStatus(data);
         if (data.job) renderJob(data.job);
         if (data.job?.running) {
@@ -163,6 +268,8 @@ async function pollJob() {
                     || Number(summary.personaFilesTransferred) > 0
                     || Number(summary.personaFilesDeleted) > 0
                     || Number(summary.extensionFilesTransferred) > 0
+                    || Number(summary.apiFilesTransferred) > 0
+                    || summary.apiKeysUpdated === true
                     || summary.stateUpdated === true
                 );
                 if (downloadChanged) {
@@ -180,6 +287,10 @@ async function pollJob() {
 
 async function startSync(direction) {
     if (busy) return;
+    if (selectedGroups.size === 0) {
+        toastr.warning('请先点击“选择同步内容”并至少勾选一项');
+        return;
+    }
     const mode = ui().mode?.value || 'incremental';
     const label = direction === 'upload' ? '上传 ST → TT-Sync' : '下载 TT-Sync → ST';
 
@@ -195,6 +306,7 @@ async function startSync(direction) {
         const result = await apiPost('/sync', {
             direction,
             mode,
+            groups: [...selectedGroups],
             confirmMirror: mode === 'mirror',
         });
         renderJob(result.job);
@@ -251,6 +363,14 @@ export async function init() {
 
     elements.pairButton.addEventListener('click', pair);
     elements.disconnectButton.addEventListener('click', disconnect);
+    elements.scopeButton.addEventListener('click', openScopeModal);
+    elements.scopeAll.addEventListener('click', () => selectScopeGroups(syncGroups.map(group => group.id)));
+    elements.scopeDefault.addEventListener('click', () => selectScopeGroups(defaultGroups));
+    elements.scopeCancel.addEventListener('click', closeScopeModal);
+    elements.scopeSave.addEventListener('click', saveScopeSelection);
+    elements.scopeModal.addEventListener('click', event => {
+        if (event.target === elements.scopeModal) closeScopeModal();
+    });
     elements.uploadButton.addEventListener('click', () => startSync('upload'));
     elements.downloadButton.addEventListener('click', () => startSync('download'));
     elements.mode.addEventListener('change', renderModeHelp);

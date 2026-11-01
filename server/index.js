@@ -12,8 +12,8 @@ import {
     defaultUserWireToLocal,
     isCommonWirePath,
     planEntriesInScope,
-    scanCommonManifest,
     scanExtensionManifest,
+    scanManifestForDatasets,
     scanWireSubtree,
     wireToLocal,
 } from './manifest.js';
@@ -23,12 +23,18 @@ import {
     parsePairUri,
 } from './ttsync-client.js';
 import {
+    DEFAULT_SYNC_GROUP_IDS,
+    publicSyncGroups,
+    resolveSyncGroups,
+} from './sync-groups.js';
+import {
     PERSONA_SELECTION_IDS,
     PERSONA_STATE_WIRE_PATH,
     PRESETS_WIRE_PATH,
     SETTINGS_WIRE_PATH,
     STATE_SELECTION_IDS,
     USER_AVATARS_WIRE_ROOT,
+    buildPersonaState,
     mergeDownloadState,
     mergeUploadState,
 } from './state-sync.js';
@@ -39,6 +45,9 @@ const CONFIG_PATH = path.join(PLUGIN_DATA_DIR, 'config.json');
 const TEMP_DIR = path.join(PLUGIN_DATA_DIR, 'tmp');
 const DATA_ROOT = path.resolve(serverDirectory, String(getConfigValue('dataRoot', './data')));
 const LOCAL_SETTINGS_PATH = path.join(DATA_ROOT, 'default-user', 'settings.json');
+const LOCAL_SECRETS_PATH = path.join(DATA_ROOT, 'default-user', 'secrets.json');
+const SECRETS_WIRE_PATH = 'default-user/secrets.json';
+const SECRETS_SELECTION_IDS = ['secrets.api_keys'];
 const TRANSFER_CONCURRENCY = 4;
 
 let currentJob = null;
@@ -57,11 +66,13 @@ function publicConfig(config) {
     };
 }
 
-function createJob(direction, mode) {
+function createJob(direction, mode, selectedGroups = DEFAULT_SYNC_GROUP_IDS) {
     return {
         running: true,
         direction,
         mode,
+        selectedGroups: [...selectedGroups],
+        resolvedGroups: [],
         phase: 'starting',
         filesTotal: 0,
         filesDone: 0,
@@ -151,8 +162,10 @@ async function makeTempDir(prefix) {
     return dir;
 }
 
-async function pullRemoteState(client, status) {
-    const selection = buildSelection(status, [...STATE_SELECTION_IDS, ...PERSONA_SELECTION_IDS]);
+async function pullRemoteState(client, status, stateOptions = null) {
+    const selectionIds = [...STATE_SELECTION_IDS];
+    if (stateOptions?.persona) selectionIds.push(...PERSONA_SELECTION_IDS);
+    const selection = buildSelection(status, selectionIds);
     let plan = null;
     const tempDir = await makeTempDir('state-pull');
     const result = { settings: null, presets: null, personaState: null };
@@ -266,8 +279,91 @@ async function syncExtensionsDownload(job, client, status) {
     }
 }
 
-async function syncPersonaUpload(job, client, status, personaState) {
+function mergeJsonPreferSource(target, source, mode) {
+    if (mode === 'mirror') return structuredClone(source ?? {});
+    if (!target || typeof target !== 'object' || Array.isArray(target)) return structuredClone(source ?? {});
+    if (!source || typeof source !== 'object' || Array.isArray(source)) return structuredClone(source ?? {});
+    const merged = structuredClone(target);
+    for (const [key, value] of Object.entries(source)) {
+        merged[key] = merged[key] && typeof merged[key] === 'object' && !Array.isArray(merged[key])
+            && value && typeof value === 'object' && !Array.isArray(value)
+            ? mergeJsonPreferSource(merged[key], value, mode)
+            : structuredClone(value);
+    }
+    return merged;
+}
+
+async function pullRemoteJsonFile(client, status, datasetIds, wirePath) {
+    const selection = buildSelection(status, datasetIds);
+    let plan = null;
+    const tempDir = await makeTempDir('json-pull');
+    try {
+        plan = await client.pullPlan('incremental', selection, { entries: [] });
+        const entry = plan.transfer.find(item => item.path === wirePath);
+        if (!entry) return null;
+        const localPath = path.join(tempDir, path.basename(wirePath));
+        await client.downloadFile(plan.plan_id, entry, localPath);
+        return JSON.parse(await fs.readFile(localPath, 'utf8'));
+    } finally {
+        if (plan?.plan_id) await client.abortPlan(plan.plan_id).catch(() => {});
+        await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    }
+}
+
+async function pushRemoteJsonFile(client, status, datasetIds, wirePath, value) {
+    const selection = buildSelection(status, datasetIds);
+    const tempDir = await makeTempDir('json-push');
+    let plan = null;
+    try {
+        const localPath = path.join(tempDir, path.basename(wirePath));
+        await fs.writeFile(localPath, JSON.stringify(value, null, 4), { mode: 0o600 });
+        const stat = await fs.stat(localPath);
+        const entry = {
+            path: wirePath,
+            size_bytes: stat.size,
+            modified_ms: Math.trunc(stat.mtimeMs),
+        };
+        plan = await client.pushPlan('incremental', selection, { entries: [entry] });
+        const transfer = plan.transfer.find(item => item.path === wirePath);
+        if (transfer) await client.uploadFile(plan.plan_id, transfer, localPath);
+        await client.commitPush(plan.plan_id);
+        plan = null;
+        return transfer ? 1 : 0;
+    } finally {
+        if (plan?.plan_id) await client.abortPlan(plan.plan_id).catch(() => {});
+        await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    }
+}
+
+async function syncApiKeysUpload(job, client, status) {
+    const localSecrets = await readJson(LOCAL_SECRETS_PATH);
+    if (!localSecrets) {
+        logJob(job, '没有找到 ST secrets.json，跳过 API/密钥文件同步');
+        return 0;
+    }
+    const remoteSecrets = await pullRemoteJsonFile(client, status, SECRETS_SELECTION_IDS, SECRETS_WIRE_PATH) ?? {};
+    const merged = mergeJsonPreferSource(remoteSecrets, localSecrets, job.mode);
+    const transferred = await pushRemoteJsonFile(client, status, SECRETS_SELECTION_IDS, SECRETS_WIRE_PATH, merged);
+    logJob(job, `API/密钥文件已上传（${transferred} 个文件发生更新）`);
+    return transferred;
+}
+
+async function syncApiKeysDownload(job, client, status) {
+    const remoteSecrets = await pullRemoteJsonFile(client, status, SECRETS_SELECTION_IDS, SECRETS_WIRE_PATH);
+    if (!remoteSecrets) {
+        logJob(job, 'TT-Sync 没有 secrets.json，跳过 API/密钥文件同步');
+        return false;
+    }
+    const localSecrets = await readJson(LOCAL_SECRETS_PATH) ?? {};
+    const merged = mergeJsonPreferSource(localSecrets, remoteSecrets, job.mode);
+    await writeJsonAtomic(LOCAL_SECRETS_PATH, merged);
+    logJob(job, 'API/密钥文件已合并到 ST secrets.json');
+    return true;
+}
+
+async function syncPersonaUpload(job, client, status, personaState = null) {
     const selection = buildSelection(status, PERSONA_SELECTION_IDS);
+    personaState ??= buildPersonaState((await readJson(LOCAL_SETTINGS_PATH)) ?? {});
     const tempDir = await makeTempDir('persona-push');
     let plan = null;
 
@@ -345,35 +441,41 @@ async function syncPersonaDownload(job, client, status) {
     }
 }
 
-async function syncStateUpload(job, client, status) {
+async function syncStateUpload(job, client, status, stateOptions) {
+    const needsSettingsOrPresets = stateOptions.presetState
+        || stateOptions.userSettings
+        || stateOptions.extensionSettings
+        || stateOptions.tavernHelper
+        || stateOptions.regex
+        || stateOptions.apiKeys;
+    if (!needsSettingsOrPresets) return 0;
+
     job.phase = 'state';
     const localSettings = await readJson(LOCAL_SETTINGS_PATH);
     if (!localSettings) {
-        logJob(job, '没有找到 ST settings.json，跳过预设/用户设置/酒馆助手状态同步');
-        return { persona: { transferred: 0, deletions: 0 } };
+        logJob(job, '没有找到 ST settings.json，跳过状态同步');
+        return 0;
     }
 
-    const remote = await pullRemoteState(client, status);
-    const { settings, presets, personaState } = mergeUploadState(
+    const remote = await pullRemoteState(client, status, stateOptions);
+    const { settings, presets } = mergeUploadState(
         localSettings,
         remote.settings ?? {},
         remote.presets ?? {},
         job.mode,
+        stateOptions,
     );
     const transferred = await pushRemoteState(client, status, settings, presets);
-    const persona = await syncPersonaUpload(job, client, status, personaState);
-    logJob(job, `预设状态、用户设置、正则和酒馆助手全局脚本已合并上传（${transferred} 个状态文件发生更新）`);
-    return { persona };
+    logJob(job, `预设、用户设置、扩展配置和正则等状态已合并上传（${transferred} 个状态文件发生更新）`);
+    return transferred;
 }
 
-async function syncStateDownload(job, client, status) {
+async function syncStateDownload(job, client, status, stateOptions) {
     job.phase = 'state';
-    const remote = await pullRemoteState(client, status);
-    const persona = await syncPersonaDownload(job, client, status);
-
+    const remote = await pullRemoteState(client, status, stateOptions);
     if (!remote.settings && !remote.presets && !remote.personaState) {
-        logJob(job, 'TT-Sync 没有找到预设/用户设置/酒馆助手状态文件，跳过状态合并');
-        return { stateUpdated: false, persona };
+        logJob(job, 'TT-Sync 没有找到所选状态文件，跳过状态合并');
+        return false;
     }
 
     const localSettings = (await readJson(LOCAL_SETTINGS_PATH)) ?? {};
@@ -383,10 +485,11 @@ async function syncStateDownload(job, client, status) {
         remote.presets ?? {},
         job.mode,
         remote.personaState,
+        stateOptions,
     );
     await writeJsonAtomic(LOCAL_SETTINGS_PATH, merged);
-    logJob(job, '已合并 TT-Sync 的预设、用户设置、正则、用户设定和酒馆助手全局脚本到 ST settings.json');
-    return { stateUpdated: true, persona };
+    logJob(job, '已合并 TT-Sync 的预设、用户设置、扩展配置、正则和酒馆助手状态到 ST settings.json');
+    return true;
 }
 
 async function deleteLocalPaths(paths, job) {
@@ -402,60 +505,93 @@ async function deleteLocalPaths(paths, job) {
     }
 }
 
-async function runUpload(job, config, mode) {
+async function runUpload(job, config) {
     const client = createClient(config);
     let plan = null;
     try {
         const status = await client.status();
-        const selection = buildSelection(status);
+        const sync = resolveSyncGroups(status, job.selectedGroups);
+        job.resolvedGroups = sync.groupIds;
+        job.sync = {
+            mainDatasets: sync.mainDatasets,
+            persona: sync.specialDatasets.persona.length > 0,
+            extensions: sync.specialDatasets.extensions.length > 0,
+            apiKeys: sync.specialDatasets.apiKeys.length > 0,
+            state: sync.state,
+        };
         logJob(job, `已连接 TT-Sync：${status.device_name || 'unknown'}，准备上传`);
+        logJob(job, `同步内容：${sync.groupIds.join(', ')}`);
         await client.ensureSession();
 
-        job.phase = 'scanning';
-        const sourceManifest = await scanCommonManifest(DATA_ROOT, serverDirectory);
-        job.filesTotal = sourceManifest.entries.length;
-        logJob(job, `ST 通用数据扫描完成：${sourceManifest.entries.length} 个文件`);
+        let mainTransferred = 0;
+        let mainDeletes = 0;
+        if (sync.mainDatasets.length > 0) {
+            job.phase = 'scanning';
+            const selection = buildSelection(status, sync.mainDatasets);
+            const sourceManifest = await scanManifestForDatasets(DATA_ROOT, serverDirectory, sync.mainDatasets);
+            job.filesTotal = sourceManifest.entries.length;
+            logJob(job, `ST 文件扫描完成：${sourceManifest.entries.length} 个文件`);
 
-        job.phase = 'comparing';
-        plan = await client.pushPlan(mode, selection, sourceManifest);
-        const transfer = planEntriesInScope(plan.transfer);
-        const deletes = planEntriesInScope((plan.delete || []).map(item => ({ path: item })));
-        const bridgeDelete = deletes.some(entry => entry.path === 'extensions/third-party/tt-sync-bridge'
-            || entry.path.startsWith('extensions/third-party/tt-sync-bridge/'));
-        if (bridgeDelete) {
-            await client.abortPlan(plan.plan_id).catch(() => {});
+            job.phase = 'comparing';
+            plan = await client.pushPlan(job.mode, selection, sourceManifest);
+            const transfer = planEntriesInScope(plan.transfer);
+            const deletes = planEntriesInScope((plan.delete || []).map(item => ({ path: item })));
+            job.filesTotal = transfer.length;
+            job.bytesTotal = transfer.reduce((sum, entry) => sum + Number(entry.size_bytes), 0);
+            logJob(job, `上传计划：传输 ${transfer.length} 个文件，${job.bytesTotal} 字节；镜像删除 ${deletes.length} 个文件`);
+
+            job.phase = 'uploading';
+            await mapLimit(transfer, TRANSFER_CONCURRENCY, async entry => {
+                job.currentPath = entry.path;
+                await client.uploadFile(plan.plan_id, entry, mapLocalPath(entry.path));
+                job.filesDone++;
+                job.bytesDone += Number(entry.size_bytes);
+                logJob(job, `已上传：${entry.path}`);
+            });
+
+            job.phase = 'committing';
+            job.currentPath = null;
+            await client.commitPush(plan.plan_id);
             plan = null;
-            throw new Error('镜像上传会删除 TT-Sync Bridge 自身，已阻止执行');
+            mainTransferred = transfer.length;
+            mainDeletes = deletes.length;
+            job.filesDeleted = deletes.length;
+            logJob(job, 'TT-Sync 已提交主文件上传计划');
         }
-        job.filesTotal = transfer.length;
-        job.bytesTotal = transfer.reduce((sum, entry) => sum + Number(entry.size_bytes), 0);
-        logJob(job, `上传计划：传输 ${transfer.length} 个文件，${job.bytesTotal} 字节；镜像删除 ${deletes.length} 个文件`);
 
-        job.phase = 'uploading';
-        await mapLimit(transfer, TRANSFER_CONCURRENCY, async entry => {
-            job.currentPath = entry.path;
-            await client.uploadFile(plan.plan_id, entry, mapLocalPath(entry.path));
-            job.filesDone++;
-            job.bytesDone += Number(entry.size_bytes);
-            logJob(job, `已上传：${entry.path}`);
-        });
+        let stateTransferred = 0;
+        if (Object.values(sync.state).some(Boolean)) {
+            stateTransferred = await syncStateUpload(job, client, status, sync.state);
+        }
 
-        job.phase = 'committing';
-        job.currentPath = null;
-        await client.commitPush(plan.plan_id);
-        job.filesDeleted = deletes.length;
-        logJob(job, 'TT-Sync 已提交上传计划');
-        await syncStateUpload(job, client, status);
-        const extensionFilesTransferred = await syncExtensionsUpload(job, client, status);
+        let extensionFilesTransferred = 0;
+        if (sync.specialDatasets.extensions.length > 0) {
+            extensionFilesTransferred = await syncExtensionsUpload(job, client, status);
+        }
+
+        let persona = { transferred: 0, deletions: 0 };
+        if (sync.specialDatasets.persona.length > 0) {
+            persona = await syncPersonaUpload(job, client, status);
+        }
+
+        let apiFilesTransferred = 0;
+        if (sync.specialDatasets.apiKeys.length > 0) {
+            apiFilesTransferred = await syncApiKeysUpload(job, client, status);
+        }
+
         job.summary = {
             direction: 'upload',
-            mode,
-            filesTransferred: transfer.length,
+            mode: job.mode,
+            groups: sync.groupIds,
+            filesTransferred: mainTransferred,
             bytesTransferred: job.bytesDone,
-            filesDeleted: deletes.length,
+            filesDeleted: mainDeletes,
+            stateTransferred,
             extensionFilesTransferred,
+            personaFilesTransferred: persona.transferred,
+            personaFilesDeleted: persona.deletions,
+            apiFilesTransferred,
         };
-        plan = null;
     } finally {
         if (plan?.plan_id) {
             await client.abortPlan(plan.plan_id).catch(error => logJob(job, `中止计划失败：${error.message}`));
@@ -464,59 +600,96 @@ async function runUpload(job, config, mode) {
     }
 }
 
-async function runDownload(job, config, mode) {
+async function runDownload(job, config) {
     const client = createClient(config);
     let plan = null;
     try {
         const status = await client.status();
-        const selection = buildSelection(status);
+        const sync = resolveSyncGroups(status, job.selectedGroups);
+        job.resolvedGroups = sync.groupIds;
+        job.sync = {
+            mainDatasets: sync.mainDatasets,
+            persona: sync.specialDatasets.persona.length > 0,
+            extensions: sync.specialDatasets.extensions.length > 0,
+            apiKeys: sync.specialDatasets.apiKeys.length > 0,
+            state: sync.state,
+        };
         logJob(job, `已连接 TT-Sync：${status.device_name || 'unknown'}，准备下载`);
+        logJob(job, `同步内容：${sync.groupIds.join(', ')}`);
         await client.ensureSession();
 
-        job.phase = 'scanning';
-        const targetManifest = await scanCommonManifest(DATA_ROOT, serverDirectory);
-        logJob(job, `ST 通用数据扫描完成：${targetManifest.entries.length} 个文件`);
+        let mainTransferred = 0;
+        let mainDeletes = 0;
+        if (sync.mainDatasets.length > 0) {
+            job.phase = 'scanning';
+            const selection = buildSelection(status, sync.mainDatasets);
+            const targetManifest = await scanManifestForDatasets(DATA_ROOT, serverDirectory, sync.mainDatasets);
+            logJob(job, `ST 文件扫描完成：${targetManifest.entries.length} 个文件`);
 
-        job.phase = 'comparing';
-        plan = await client.pullPlan(mode, selection, targetManifest);
-        const transfer = planEntriesInScope(plan.transfer);
-        const deletes = mode === 'mirror'
-            ? planEntriesInScope((plan.delete || []).map(item => ({ path: item })))
-            : [];
-        job.filesTotal = transfer.length;
-        job.bytesTotal = transfer.reduce((sum, entry) => sum + Number(entry.size_bytes), 0);
-        logJob(job, `下载计划：传输 ${transfer.length} 个文件，${job.bytesTotal} 字节；镜像删除 ${deletes.length} 个本地文件`);
+            job.phase = 'comparing';
+            plan = await client.pullPlan(job.mode, selection, targetManifest);
+            const transfer = planEntriesInScope(plan.transfer);
+            const deletes = job.mode === 'mirror'
+                ? planEntriesInScope((plan.delete || []).map(item => ({ path: item })))
+                : [];
+            job.filesTotal = transfer.length;
+            job.bytesTotal = transfer.reduce((sum, entry) => sum + Number(entry.size_bytes), 0);
+            logJob(job, `下载计划：传输 ${transfer.length} 个文件，${job.bytesTotal} 字节；镜像删除 ${deletes.length} 个本地文件`);
 
-        job.phase = 'downloading';
-        await mapLimit(transfer, TRANSFER_CONCURRENCY, async entry => {
-            job.currentPath = entry.path;
-            await client.downloadFile(plan.plan_id, entry, mapLocalPath(entry.path));
-            job.filesDone++;
-            job.bytesDone += Number(entry.size_bytes);
-            logJob(job, `已下载：${entry.path}`);
-        });
+            job.phase = 'downloading';
+            await mapLimit(transfer, TRANSFER_CONCURRENCY, async entry => {
+                job.currentPath = entry.path;
+                await client.downloadFile(plan.plan_id, entry, mapLocalPath(entry.path));
+                job.filesDone++;
+                job.bytesDone += Number(entry.size_bytes);
+                logJob(job, `已下载：${entry.path}`);
+            });
 
-        if (mode === 'mirror' && deletes.length > 0) {
-            job.phase = 'deleting';
+            if (job.mode === 'mirror' && deletes.length > 0) {
+                job.phase = 'deleting';
+                job.currentPath = null;
+                await deleteLocalPaths(deletes.map(entry => entry.path), job);
+            }
+
             job.currentPath = null;
-            await deleteLocalPaths(deletes.map(entry => entry.path), job);
+            await client.abortPlan(plan.plan_id).catch(() => {});
+            plan = null;
+            mainTransferred = transfer.length;
+            mainDeletes = deletes.length;
         }
 
-        job.currentPath = null;
-        await client.abortPlan(plan.plan_id).catch(() => {});
-        plan = null;
-        const stateResult = await syncStateDownload(job, client, status);
-        const extensionFilesTransferred = await syncExtensionsDownload(job, client, status);
+        let stateUpdated = false;
+        if (Object.values(sync.state).some(Boolean)) {
+            stateUpdated = await syncStateDownload(job, client, status, sync.state);
+        }
+
+        let persona = { transferred: 0, deleted: 0 };
+        if (sync.specialDatasets.persona.length > 0) {
+            persona = await syncPersonaDownload(job, client, status);
+        }
+
+        let extensionFilesTransferred = 0;
+        if (sync.specialDatasets.extensions.length > 0) {
+            extensionFilesTransferred = await syncExtensionsDownload(job, client, status);
+        }
+
+        let apiKeysUpdated = false;
+        if (sync.specialDatasets.apiKeys.length > 0) {
+            apiKeysUpdated = await syncApiKeysDownload(job, client, status);
+        }
+
         job.summary = {
             direction: 'download',
-            mode,
-            filesTransferred: transfer.length,
+            mode: job.mode,
+            groups: sync.groupIds,
+            filesTransferred: mainTransferred,
             bytesTransferred: job.bytesDone,
             filesDeleted: job.filesDeleted,
-            stateUpdated: stateResult.stateUpdated,
-            personaFilesTransferred: stateResult.persona?.transferred ?? 0,
-            personaFilesDeleted: stateResult.persona?.deleted ?? 0,
+            stateUpdated,
+            personaFilesTransferred: persona.transferred,
+            personaFilesDeleted: persona.deleted,
             extensionFilesTransferred,
+            apiKeysUpdated,
         };
         logJob(job, '下载/恢复完成');
     } finally {
@@ -530,9 +703,9 @@ async function runDownload(job, config, mode) {
 async function runSync(job, config) {
     try {
         if (job.direction === 'upload') {
-            await runUpload(job, config, job.mode);
+            await runUpload(job, config);
         } else {
-            await runDownload(job, config, job.mode);
+            await runDownload(job, config);
         }
     } catch (error) {
         job.error = error?.message || String(error);
@@ -554,6 +727,8 @@ async function init(router) {
             ok: true,
             dataRoot: DATA_ROOT,
             datasets: [...COMMON_DATASETS.map(dataset => dataset.id), ...EXTENSION_DATASET_IDS],
+            groups: publicSyncGroups(),
+            defaultGroups: [...DEFAULT_SYNC_GROUP_IDS],
             config: publicConfig(config),
             connected: false,
             server: null,
@@ -649,6 +824,11 @@ async function init(router) {
         const direction = String(req.body?.direction ?? '');
         const mode = String(req.body?.mode ?? 'incremental');
         const confirmMirror = req.body?.confirmMirror === true;
+        const availableGroups = new Set(publicSyncGroups().map(group => group.id));
+        const requestedGroups = Array.isArray(req.body?.groups)
+            ? [...new Set(req.body.groups.map(group => String(group)))]
+            : [...DEFAULT_SYNC_GROUP_IDS];
+        const unknownGroups = requestedGroups.filter(group => !availableGroups.has(group));
 
         if (!['upload', 'download'].includes(direction)) {
             return res.status(400).json({ ok: false, error: 'direction 必须是 upload 或 download' });
@@ -659,11 +839,17 @@ async function init(router) {
         if (mode === 'mirror' && !confirmMirror) {
             return res.status(400).json({ ok: false, error: '镜像模式需要二次确认' });
         }
+        if (unknownGroups.length > 0) {
+            return res.status(400).json({ ok: false, error: `未知同步内容：${unknownGroups.join(', ')}` });
+        }
+        if (requestedGroups.length === 0) {
+            return res.status(400).json({ ok: false, error: '至少需要勾选一项同步内容' });
+        }
 
         const config = await readConfig();
         if (!config) return res.status(400).json({ ok: false, error: '还没有配对 TT-Sync' });
 
-        currentJob = createJob(direction, mode);
+        currentJob = createJob(direction, mode, requestedGroups);
         void runSync(currentJob, config);
         res.status(202).json({ ok: true, job: currentJob });
     });

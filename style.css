@@ -87,3 +87,85 @@
     border-radius: 4px;
     background: rgba(0, 0, 0, 0.15);
 }
+
+
+.tt-sync-bridge-settings .tt-sync-scope-list {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    max-height: 52vh;
+    overflow: auto;
+    margin: 10px 0;
+    padding-right: 4px;
+}
+
+.tt-sync-bridge-settings .tt-sync-scope-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 7px;
+    background: rgba(0, 0, 0, 0.10);
+    cursor: pointer;
+}
+
+.tt-sync-bridge-settings .tt-sync-scope-item input {
+    margin-top: 3px;
+    flex: 0 0 auto;
+}
+
+.tt-sync-bridge-settings .tt-sync-scope-item strong {
+    display: block;
+}
+
+.tt-sync-bridge-settings .tt-sync-scope-item small {
+    display: block;
+    opacity: 0.75;
+    margin-top: 2px;
+    line-height: 1.4;
+}
+
+.tt-sync-bridge-settings .tt-sync-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.55);
+}
+
+.tt-sync-bridge-settings .tt-sync-modal[hidden] {
+    display: none !important;
+}
+
+.tt-sync-bridge-settings .tt-sync-modal-card {
+    width: min(620px, 92vw);
+    max-height: 88vh;
+    overflow: auto;
+    padding: 16px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 12px;
+    background: var(--SmartThemeBlurTintColor);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.tt-sync-bridge-settings .tt-sync-modal-card h3 {
+    margin: 0 0 6px;
+}
+
+.tt-sync-bridge-settings .tt-sync-modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.tt-sync-bridge-settings .tt-sync-modal-actions .menu_button {
+    width: max-content;
+    min-width: max-content;
+    margin: 0;
+    white-space: nowrap;
+}

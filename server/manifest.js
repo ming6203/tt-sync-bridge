@@ -219,6 +219,18 @@ async function scanRoots(dataRoot, appRoot, roots) {
     return { entries };
 }
 
+export function rootsForDatasetIds(datasetIds) {
+    const requested = new Set(datasetIds);
+    const roots = [...COMMON_DATASETS, ...EXTENSION_DATASETS]
+        .filter(dataset => requested.has(dataset.id))
+        .flatMap(dataset => dataset.roots);
+    return [...new Set(roots)];
+}
+
+export async function scanManifestForDatasets(dataRoot, appRoot, datasetIds) {
+    return await scanRoots(dataRoot, appRoot, rootsForDatasetIds(datasetIds));
+}
+
 export async function scanCommonManifest(dataRoot, appRoot) {
     return await scanRoots(dataRoot, appRoot, COMMON_ROOTS);
 }

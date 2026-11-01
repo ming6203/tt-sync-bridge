@@ -51,6 +51,40 @@ const EXTENSION_SETTING_EXCLUSIONS = new Set([
     'apiUrl',
 ]);
 
+const REGEX_STATE_KEYS = new Set([
+    'regex',
+    'regex_presets',
+    'character_allowed_regex',
+    'preset_allowed_regex',
+    'regexBinding_scriptId',
+]);
+
+const TAVERN_HELPER_STATE_KEYS = new Set([
+    'tavern_helper',
+    'variables',
+]);
+
+export const DEFAULT_STATE_OPTIONS = Object.freeze({
+    presetState: true,
+    userSettings: true,
+    persona: true,
+    extensionSettings: true,
+    tavernHelper: true,
+    regex: true,
+    apiKeys: false,
+});
+
+function effectiveStateOptions(options) {
+    return { ...DEFAULT_STATE_OPTIONS, ...(options ?? {}) };
+}
+
+function shouldMergeExtensionKey(key, options) {
+    if (key === 'apiKey' || key === 'apiUrl') return options.apiKeys;
+    if (REGEX_STATE_KEYS.has(key)) return options.regex;
+    if (TAVERN_HELPER_STATE_KEYS.has(key)) return options.tavernHelper;
+    return options.extensionSettings;
+}
+
 function clone(value) {
     return value === undefined ? undefined : structuredClone(value);
 }
@@ -210,10 +244,10 @@ function mergeExtensionValue(key, target, source, mode) {
     }
 }
 
-function mergeExtensionSettings(target, source, mode) {
+function mergeExtensionSettings(target, source, mode, options) {
     const result = isPlainObject(target) ? clone(target) : {};
     for (const [key, value] of Object.entries(source ?? {})) {
-        if (EXTENSION_SETTING_EXCLUSIONS.has(key)) continue;
+        if (!shouldMergeExtensionKey(key, options)) continue;
         result[key] = mergeExtensionValue(key, result[key], value, mode);
     }
     return result;
@@ -228,19 +262,26 @@ function mergeExtensionSettings(target, source, mode) {
  * @param {object|null} remotePersonaState TT-Sync default-user/settings/persona-state.json
  * @returns {object} New settings object, localSettings is not mutated
  */
-export function mergeDownloadState(localSettings, remoteSettings, remotePresets, mode = 'incremental', remotePersonaState = null) {
+export function mergeDownloadState(localSettings, remoteSettings, remotePresets, mode = 'incremental', remotePersonaState = null, stateOptions = null) {
     const merged = clone(localSettings) ?? {};
+    const options = effectiveStateOptions(stateOptions);
 
-    if (isPlainObject(remoteSettings?.power_user)) {
+    if (options.userSettings && isPlainObject(remoteSettings?.power_user)) {
         merged.power_user = deepMergeObject(merged.power_user, remoteSettings.power_user);
     }
 
     const remoteExtensions = remoteSettings?.extension_settings;
-    if (remoteExtensions && typeof remoteExtensions === 'object') {
-        merged.extension_settings = mergeExtensionSettings(merged.extension_settings, remoteExtensions, mode);
+    if (remoteExtensions && typeof remoteExtensions === 'object'
+        && (options.extensionSettings || options.tavernHelper || options.regex || options.apiKeys)) {
+        merged.extension_settings = mergeExtensionSettings(merged.extension_settings, remoteExtensions, mode, options);
     }
 
-    if (remotePresets && typeof remotePresets === 'object') {
+    if (options.apiKeys) {
+        if (Object.hasOwn(remoteSettings ?? {}, 'proxies')) merged.proxies = clone(remoteSettings.proxies);
+        if (Object.hasOwn(remoteSettings ?? {}, 'selected_proxy')) merged.selected_proxy = clone(remoteSettings.selected_proxy);
+    }
+
+    if (options.presetState && remotePresets && typeof remotePresets === 'object') {
         for (const key of PRESET_STATE_KEYS) {
             if (Object.hasOwn(remotePresets, key)) {
                 merged[key] = clone(remotePresets[key]);
@@ -257,7 +298,7 @@ export function mergeDownloadState(localSettings, remoteSettings, remotePresets,
         }
     }
 
-    if (isPlainObject(remotePersonaState)) {
+    if (options.persona && isPlainObject(remotePersonaState)) {
         merged.power_user ??= {};
         if (isPlainObject(remotePersonaState.power_user)) {
             merged.power_user = deepMergeObject(merged.power_user, remotePersonaState.power_user);
@@ -269,43 +310,7 @@ export function mergeDownloadState(localSettings, remoteSettings, remotePresets,
     return merged;
 }
 
-/**
- * Merge ST state into copies of TT-Sync's current files so unknown TT-only
- * fields are preserved.
- * @param {object} localSettings Current SillyTavern settings.json
- * @param {object} remoteSettings TT-Sync default-user/settings.json
- * @param {object} remotePresets TT-Sync default-user/settings/presets.json
- * @param {'incremental'|'mirror'} mode Sync mode
- * @returns {{settings: object, presets: object, personaState: object}}
- */
-export function mergeUploadState(localSettings, remoteSettings, remotePresets, mode = 'incremental') {
-    const settings = clone(remoteSettings) ?? {};
-    const presets = clone(remotePresets) ?? {};
-    const localExtensions = localSettings?.extension_settings;
-
-    if (isPlainObject(localSettings?.power_user)) {
-        settings.power_user = deepMergeObject(settings.power_user, localSettings.power_user);
-    }
-
-    if (localExtensions && typeof localExtensions === 'object') {
-        settings.extension_settings = mergeExtensionSettings(settings.extension_settings, localExtensions, mode);
-    }
-
-    for (const key of PRESET_STATE_KEYS) {
-        if (Object.hasOwn(localSettings ?? {}, key)) {
-            presets[key] = clone(localSettings[key]);
-        }
-    }
-
-    if (localSettings?.power_user && typeof localSettings.power_user === 'object') {
-        presets.power_user ??= {};
-        for (const key of PRESET_POWER_KEYS) {
-            if (Object.hasOwn(localSettings.power_user, key)) {
-                presets.power_user[key] = clone(localSettings.power_user[key]);
-            }
-        }
-    }
-
+export function buildPersonaState(localSettings) {
     const personaState = {
         power_user: {},
         username: localSettings?.username ?? '',
@@ -316,6 +321,54 @@ export function mergeUploadState(localSettings, remoteSettings, remotePresets, m
             personaState.power_user[key] = clone(localSettings.power_user[key]);
         }
     }
+    return personaState;
+}
 
-    return { settings, presets, personaState };
+/**
+ * Merge ST state into copies of TT-Sync's current files so unknown TT-only
+ * fields are preserved.
+ * @param {object} localSettings Current SillyTavern settings.json
+ * @param {object} remoteSettings TT-Sync default-user/settings.json
+ * @param {object} remotePresets TT-Sync default-user/settings/presets.json
+ * @param {'incremental'|'mirror'} mode Sync mode
+ * @returns {{settings: object, presets: object, personaState: object}}
+ */
+export function mergeUploadState(localSettings, remoteSettings, remotePresets, mode = 'incremental', stateOptions = null) {
+    const settings = clone(remoteSettings) ?? {};
+    const presets = clone(remotePresets) ?? {};
+    const localExtensions = localSettings?.extension_settings;
+    const options = effectiveStateOptions(stateOptions);
+
+    if (options.userSettings && isPlainObject(localSettings?.power_user)) {
+        settings.power_user = deepMergeObject(settings.power_user, localSettings.power_user);
+    }
+
+    if (localExtensions && typeof localExtensions === 'object'
+        && (options.extensionSettings || options.tavernHelper || options.regex || options.apiKeys)) {
+        settings.extension_settings = mergeExtensionSettings(settings.extension_settings, localExtensions, mode, options);
+    }
+
+    if (options.apiKeys) {
+        if (Object.hasOwn(localSettings ?? {}, 'proxies')) settings.proxies = clone(localSettings.proxies);
+        if (Object.hasOwn(localSettings ?? {}, 'selected_proxy')) settings.selected_proxy = clone(localSettings.selected_proxy);
+    }
+
+    if (options.presetState) {
+        for (const key of PRESET_STATE_KEYS) {
+            if (Object.hasOwn(localSettings ?? {}, key)) {
+                presets[key] = clone(localSettings[key]);
+            }
+        }
+
+        if (localSettings?.power_user && typeof localSettings.power_user === 'object') {
+            presets.power_user ??= {};
+            for (const key of PRESET_POWER_KEYS) {
+                if (Object.hasOwn(localSettings.power_user, key)) {
+                    presets.power_user[key] = clone(localSettings.power_user[key]);
+                }
+            }
+        }
+    }
+
+    return { settings, presets, personaState: buildPersonaState(localSettings) };
 }

@@ -15,7 +15,8 @@
 - user avatars
 - third-party extension code and data
 - user-scoped extensions and data
-- extension settings (`extension_settings`, excluding `apiKey` / `apiUrl`)
+- extension settings (`extension_settings`)
+- API keys and proxy settings (`secrets.json`, `extension_settings.apiKey/apiUrl`, `proxies`, `selected_proxy`), opt-in and disabled by default
 
 ## 选择性状态桥接
 

@@ -23,6 +23,12 @@
 
             <div class="tt-sync-divider"></div>
 
+            <label class="tt-sync-label">同步内容</label>
+            <div class="tt-sync-actions">
+                <button id="tt_sync_scope_btn" class="menu_button">选择同步内容...</button>
+            </div>
+            <div id="tt_sync_scope_summary" class="tt-sync-help"></div>
+
             <label class="tt-sync-label" for="tt_sync_mode">同步模式</label>
             <select id="tt_sync_mode" class="text_pole">
                 <option value="incremental" selected>增量模式（推荐）</option>
@@ -44,6 +50,20 @@
             </div>
 
             <pre id="tt_sync_log" class="tt-sync-log"></pre>
+        </div>
+    </div>
+
+    <div id="tt_sync_scope_modal" class="tt-sync-modal" hidden>
+        <div class="tt-sync-modal-card">
+            <h3>选择同步内容</h3>
+            <div class="tt-sync-help">未勾选的内容不会上传，也不会下载。</div>
+            <div id="tt_sync_scope_list" class="tt-sync-scope-list"></div>
+            <div class="tt-sync-modal-actions">
+                <button id="tt_sync_scope_all" class="menu_button">全选</button>
+                <button id="tt_sync_scope_default" class="menu_button">恢复默认</button>
+                <button id="tt_sync_scope_cancel" class="menu_button">取消</button>
+                <button id="tt_sync_scope_save" class="menu_button">保存</button>
+            </div>
         </div>
     </div>
 </div>

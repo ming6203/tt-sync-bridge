@@ -20,7 +20,6 @@ function ui() {
         mode: document.querySelector('#tt_sync_mode'),
         modeHelp: document.querySelector('#tt_sync_mode_help'),
         scopeButton: document.querySelector('#tt_sync_scope_btn'),
-        scopeSummary: document.querySelector('#tt_sync_scope_summary'),
         scopeModal: document.querySelector('#tt_sync_scope_modal'),
         scopeList: document.querySelector('#tt_sync_scope_list'),
         scopeAll: document.querySelector('#tt_sync_scope_all'),
@@ -129,18 +128,6 @@ function initializeGroups(data) {
     }
 }
 
-function renderScopeSummary() {
-    const count = selectedGroups.size;
-    const labels = syncGroups
-        .filter(group => selectedGroups.has(group.id))
-        .map(group => group.label);
-    if (ui().scopeSummary) {
-        ui().scopeSummary.textContent = count > 0
-            ? `已选择 ${count} 项：${labels.join('、')}`
-            : '当前未选择任何同步内容';
-    }
-}
-
 function renderScopeList() {
     const list = ui().scopeList;
     if (!list) return;
@@ -184,7 +171,6 @@ function saveScopeSelection() {
     }
     selectedGroups = new Set(checked);
     localStorage.setItem(SYNC_GROUPS_STORAGE_KEY, JSON.stringify(checked));
-    renderScopeSummary();
     closeScopeModal();
 }
 
@@ -228,7 +214,6 @@ async function refreshStatus() {
     try {
         const data = await apiGet('/status');
         initializeGroups(data);
-        renderScopeSummary();
         renderStatus(data);
         if (data.job) renderJob(data.job);
         if (data.job?.running) {

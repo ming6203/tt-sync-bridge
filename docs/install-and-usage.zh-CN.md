@@ -329,6 +329,8 @@ tauritavern://tt-sync/pair?v=2&url=...&token=...&exp=...&spki=...
 - `extension_settings.apiUrl`
 - `proxies`
 - `selected_proxy`
+- `oai_settings.reverse_proxy`
+- `oai_settings.proxy_password`
 
 这些是敏感数据，建议确认自己的使用环境后再启用。
 

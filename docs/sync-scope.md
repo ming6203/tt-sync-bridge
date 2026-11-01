@@ -16,7 +16,7 @@
 - third-party extension code and data
 - user-scoped extensions and data
 - extension settings (`extension_settings`)
-- API keys and proxy settings (`secrets.json`, `extension_settings.apiKey/apiUrl`, `proxies`, `selected_proxy`), opt-in and disabled by default
+- API keys and proxy settings (`secrets.json`, `extension_settings.apiKey/apiUrl`, `proxies`, `selected_proxy`, `oai_settings.reverse_proxy/proxy_password`), opt-in and disabled by default
 
 ## 选择性状态桥接
 

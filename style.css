@@ -1,0 +1,208 @@
+.tt-sync-bridge-settings .tt-sync-status-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.tt-sync-bridge-settings .tt-sync-status {
+    color: var(--SmartThemeQuoteColor);
+}
+
+.tt-sync-bridge-settings .tt-sync-status.is-ok {
+    color: #61c66b;
+}
+
+.tt-sync-bridge-settings .tt-sync-status.is-error {
+    color: #e06c75;
+}
+
+.tt-sync-bridge-settings .tt-sync-server-info {
+    font-size: 0.9em;
+    opacity: 0.8;
+    margin-bottom: 8px;
+    word-break: break-all;
+}
+
+.tt-sync-bridge-settings .tt-sync-label {
+    display: block;
+    margin: 8px 0 4px;
+    font-weight: 600;
+}
+
+.tt-sync-bridge-settings .tt-sync-pair-input {
+    width: 100%;
+    min-height: 70px;
+    resize: vertical;
+    font-family: monospace;
+    font-size: 0.9em;
+}
+
+.tt-sync-bridge-settings .tt-sync-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.tt-sync-bridge-settings .tt-sync-actions .menu_button {
+    flex: 0 0 auto;
+    width: max-content;
+    min-width: max-content;
+    max-width: 100%;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.tt-sync-bridge-settings .tt-sync-divider {
+    border-top: 1px solid var(--SmartThemeBorderColor);
+    margin: 12px 0;
+}
+
+.tt-sync-bridge-settings .tt-sync-help {
+    margin-top: 4px;
+    font-size: 0.9em;
+    opacity: 0.8;
+}
+
+.tt-sync-bridge-settings .tt-sync-progress-wrap {
+    margin-top: 10px;
+}
+
+.tt-sync-bridge-settings #tt_sync_progress {
+    width: 100%;
+    height: 10px;
+}
+
+.tt-sync-bridge-settings .tt-sync-log {
+    max-height: 180px;
+    overflow: auto;
+    margin-top: 8px;
+    padding: 6px;
+    font-size: 0.82em;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.15);
+}
+
+
+.tt-sync-bridge-settings .tt-sync-scope-list {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    max-height: 52vh;
+    overflow: auto;
+    margin: 10px 0;
+    padding-right: 4px;
+}
+
+.tt-sync-bridge-settings .tt-sync-scope-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 7px;
+    background: rgba(0, 0, 0, 0.10);
+    cursor: pointer;
+}
+
+.tt-sync-bridge-settings .tt-sync-scope-item input {
+    margin-top: 3px;
+    flex: 0 0 auto;
+}
+
+.tt-sync-bridge-settings .tt-sync-scope-item strong {
+    display: block;
+}
+
+.tt-sync-bridge-settings .tt-sync-scope-item small {
+    display: block;
+    opacity: 0.75;
+    margin-top: 2px;
+    line-height: 1.4;
+}
+
+.tt-sync-bridge-settings .tt-sync-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.55);
+}
+
+.tt-sync-bridge-settings .tt-sync-modal[hidden] {
+    display: none !important;
+}
+
+.tt-sync-bridge-settings .tt-sync-modal-card {
+    width: min(620px, 92vw);
+    max-height: 88vh;
+    overflow: auto;
+    padding: 16px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 12px;
+    background: var(--SmartThemeBlurTintColor);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+}
+
+.tt-sync-bridge-settings .tt-sync-modal-card h3 {
+    margin: 0 0 6px;
+}
+
+.tt-sync-bridge-settings .tt-sync-modal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.tt-sync-bridge-settings .tt-sync-modal-actions .menu_button {
+    width: max-content;
+    min-width: max-content;
+    margin: 0;
+    white-space: nowrap;
+}
+
+
+.tt-sync-reload-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.62);
+}
+
+.tt-sync-reload-card {
+    width: min(460px, 90vw);
+    padding: 20px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 12px;
+    background: var(--SmartThemeBlurTintColor);
+    box-shadow: 0 18px 54px rgba(0, 0, 0, 0.5);
+    text-align: center;
+}
+
+.tt-sync-reload-card h3 {
+    margin: 0 0 10px;
+}
+
+.tt-sync-reload-card p {
+    margin: 0 0 16px;
+    line-height: 1.6;
+}
+
+.tt-sync-reload-card .menu_button {
+    width: max-content;
+    min-width: max-content;
+    margin: 0 auto;
+    white-space: nowrap;
+}

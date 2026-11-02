@@ -169,3 +169,40 @@
     margin: 0;
     white-space: nowrap;
 }
+
+
+.tt-sync-reload-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.62);
+}
+
+.tt-sync-reload-card {
+    width: min(460px, 90vw);
+    padding: 20px;
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 12px;
+    background: var(--SmartThemeBlurTintColor);
+    box-shadow: 0 18px 54px rgba(0, 0, 0, 0.5);
+    text-align: center;
+}
+
+.tt-sync-reload-card h3 {
+    margin: 0 0 10px;
+}
+
+.tt-sync-reload-card p {
+    margin: 0 0 16px;
+    line-height: 1.6;
+}
+
+.tt-sync-reload-card .menu_button {
+    width: max-content;
+    min-width: max-content;
+    margin: 0 auto;
+    white-space: nowrap;
+}

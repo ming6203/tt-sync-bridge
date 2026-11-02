@@ -244,6 +244,38 @@ function stopPolling() {
     }
 }
 
+function showReloadOverlay() {
+    if (document.querySelector('#tt_sync_reload_overlay')) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'tt_sync_reload_overlay';
+    overlay.className = 'tt-sync-reload-overlay';
+    overlay.innerHTML = `
+        <div class="tt-sync-reload-card">
+            <h3>同步完成</h3>
+            <p>用户设定、角色卡、正则、扩展或预设已更新。页面将在 <strong id="tt_sync_reload_count">8</strong> 秒后自动刷新，避免旧页面把同步结果覆盖。</p>
+            <button id="tt_sync_reload_now" class="menu_button">立即刷新</button>
+        </div>
+    `;
+    document.body.append(overlay);
+
+    let remaining = 8;
+    const count = overlay.querySelector('#tt_sync_reload_count');
+    const timer = window.setInterval(() => {
+        remaining--;
+        if (count) count.textContent = String(Math.max(0, remaining));
+        if (remaining <= 0) {
+            window.clearInterval(timer);
+            window.location.reload();
+        }
+    }, 1000);
+
+    overlay.querySelector('#tt_sync_reload_now')?.addEventListener('click', () => {
+        window.clearInterval(timer);
+        window.location.reload();
+    });
+}
+
 async function pollJob() {
     stopPolling();
     try {
@@ -270,9 +302,7 @@ async function pollJob() {
                     || summary.stateUpdated === true
                 );
                 if (downloadChanged) {
-                    if (window.confirm('下载同步已完成。角色卡、正则、用户设定、脚本和预设等数据需要刷新页面才会生效。现在刷新？')) {
-                        location.reload();
-                    }
+                    showReloadOverlay();
                 }
             }
         }

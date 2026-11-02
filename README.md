@@ -24,6 +24,22 @@ server/      SillyTavern server plugin
 docs/        pairing / scope / security docs
 ```
 
+## 服务端插件专用仓库
+
+如果安装器只接受 GitHub 仓库链接、不能选择分支，可直接使用服务端专用仓库：
+
+```text
+https://github.com/ming6203/tt-sync-bridge-server
+```
+
+该仓库默认分支根目录就是 SillyTavern 服务端插件结构，可直接作为服务端插件链接安装。
+
+前端扩展仍使用：
+
+```text
+https://github.com/ming6203/tt-sync-bridge
+```
+
 ## 安装
 
 > SillyTavern 的“安装扩展”只能安装前端扩展，不能安装服务器插件。服务端插件需要一次性在运行 SillyTavern 的服务器上安装。安装完成后，所有访问这台 SillyTavern 的浏览器设备都能使用。
